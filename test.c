@@ -3,11 +3,8 @@
 #include <stddef.h>
 #include "lina.h"
 
-#define NUM_TESTS 100           //Number of tests case to create
-#define MATRIX_MAX_ROWS 4       //Max rows that a matrix can have
-#define MATRIX_MAX_COLLUMNS 4   //Max collumns a matrix can have
-#define MAX_VALUE 15            //Max value a matrix can have
-//Matrix type. A is m by n
+#define NUM_TESTS 6      //Number of tests case to create
+#define MAX_VALUE 15       //Max value a matrix can have
 
 typedef struct matrix_t
 {
@@ -17,8 +14,9 @@ typedef struct matrix_t
 }matrix_t;
 
 //Dinamically create NUM_TESTS tests case randomly generating matrices with random values (whom max is MAX_VALUE)
-//and random collumns and row numbers (whom max is MATRIX_MAX_ROWS and MATRIX_MAX_COLLUMNS)
+//index from 0 to NUM_TESTS/3 will contain 2x3 matrices, index from NUM_TESTS/3 to 2*NUM_TESTS/3 3x3, and index from 2*NUM_TESTS/3 to NUM_TESTS 4x3
 void create_tests(matrix_t **tests);
+
 //Free the heap memory from the test structure
 void delete_tests(matrix_t **tests);
 
@@ -27,17 +25,22 @@ void pmatrix(double *A, int m, int n);
 
 int main()
 {
-	
-	
 	matrix_t *tests[NUM_TESTS];
 
 	create_tests(tests);
 
-	pmatrix(tests[0]->A,tests[0]->m,tests[0]->n);
+	for(int i=0;i< NUM_TESTS;i++)
+		pmatrix(tests[i]->A,tests[i]->m,tests[i]->n);
 
+	double *C = malloc(sizeof(*C)*tests[0]->m*tests[0]->n);
+
+	lina_scale(tests[0]->A,C,1.5,tests[0]->m,tests[0]->n);
+
+	pmatrix(C,tests[0]->m,tests[0]->n);
+
+	delete_tests(tests);
 	return 0;
 }
-
 
 void pmatrix(double *A,int m,int n){
 
@@ -50,6 +53,7 @@ void pmatrix(double *A,int m,int n){
 
 	}
 
+	printf("\n");
 
 }
 
@@ -59,8 +63,25 @@ void create_tests(matrix_t **tests){
 
 	for(int i=0;i<NUM_TESTS;i++){
 
-		int rows = rand() % MATRIX_MAX_ROWS;
-		int cols = rand() % MATRIX_MAX_COLLUMNS;
+		int rows;
+		int cols;
+
+		if(i < NUM_TESTS/3){
+			rows = 2;
+			cols = 3;
+		}
+		else if (i >= NUM_TESTS/3 && i < 2*NUM_TESTS/3)
+		{
+			rows = 3;
+			cols = 3;
+		}
+		else{
+			rows = 4;
+			cols = 3;
+		}
+		
+
+		
 		
 		double *ptr = malloc(sizeof(*ptr)*rows*cols);
 		
