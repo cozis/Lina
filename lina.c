@@ -1,9 +1,8 @@
 #include <stddef.h> // NULL
 #include <assert.h> // assert
+#include <stdlib.h>
 #include "lina.h"
 
-// Evaluate the dot product C = A*B where C is of size m by l, A is m by n and B is n by l.
-// NOTE: C can't be the same pointer of A or B.
 void lina_dot(double *A, double *B, double *C, int m, int n, int l){
 
     assert(m > 0 && n > 0 && l > 0);
@@ -32,8 +31,6 @@ void lina_dot(double *A, double *B, double *C, int m, int n, int l){
 
 }
 
-// Evaluate C = A + B where A,B,C are m by n.
-// NOTE: C can be the same location of A or B.
 void lina_add(double *A, double *B, double *C, int m, int n){
 
     assert(m > 0 && n > 0);
@@ -46,8 +43,6 @@ void lina_add(double *A, double *B, double *C, int m, int n){
             C[i * n + j] = A[i * n + j] + B[i * n + j];
 }
 
-// Evaluate B = k*A where A and B are m by n matrices.
-// NOTE: B can be the same location of A.
 void lina_scale(double *A, double *B, double k, int m, int n){
 
     assert(m > 0 && n > 0);
@@ -60,12 +55,33 @@ void lina_scale(double *A, double *B, double k, int m, int n){
             B[i * n + j] = k * A[i * n + j];
 }
 
-// Evaluate B = A^t (the transpose of A) where A is m by n.
-// NOTE: B can be the same location of A.
 void lina_transpose(double *A, double *B, int m, int n){
 
     assert(m > 0 && n > 0);
     assert(A != NULL && B != NULL);
+
+    double *support = malloc(sizeof(*support) * m * n);
+
+    for(int i=0;i<n;i++){
+
+        for(int j=0;j<m;j++){
+
+            support[i*m + j] = A[j*n + i];
+        }
+    
+    }
+
+    for(int i=0;i<n;i++){
+
+        for(int j=0;j<m;j++){
+
+            B[i*m + j] = support[i*m + j];
+        }
+    
+    }
+
+    free(support);
+    support = NULL;
 
 /*
     | A B C |
@@ -79,5 +95,5 @@ void lina_transpose(double *A, double *B, int m, int n){
     | A B C D E F - - - |
     | A D - B E - C F - |
 */
-    #warning "TODO"
+    #warning "Try to think better algorithm"
 }
