@@ -6,7 +6,7 @@
 // NOTE: C can't be the same pointer of A or B.
 void lina_dot(double *A, double *B, double *C, int m, int n, int l){
 
-    assert(m >= 0 && n >= 0 && l >= 0);
+    assert(m > 0 && n > 0 && l > 0);
     assert(A != NULL && B != NULL && C != NULL);
     assert(A != C && B != C);
 
@@ -36,7 +36,7 @@ void lina_dot(double *A, double *B, double *C, int m, int n, int l){
 // NOTE: C can be the same location of A or B.
 void lina_add(double *A, double *B, double *C, int m, int n){
 
-    assert(m >= 0 && n >= 0);
+    assert(m > 0 && n > 0);
     assert(A != NULL && B != NULL && C != NULL);
     
     for(int i = 0; i < m; i++)
@@ -50,7 +50,7 @@ void lina_add(double *A, double *B, double *C, int m, int n){
 // NOTE: B can be the same location of A.
 void lina_scale(double *A, double *B, double k, int m, int n){
 
-    assert(m >= 0 && n >= 0);
+    assert(m > 0 && n > 0);
     assert(A != NULL && B != NULL);
 
     for(int i = 0; i < m; i++)
@@ -64,4 +64,20 @@ void lina_scale(double *A, double *B, double k, int m, int n){
 // NOTE: B can be the same location of A.
 void lina_transpose(double *A, double *B, int m, int n){
 
+    assert(m > 0 && n > 0);
+    assert(A != NULL && B != NULL);
+
+/*
+    | A B C |
+    | D E F |
+    | - - - |
+
+    | A D - |
+    | B E - |
+    | C F - |
+
+    | A B C D E F - - - |
+    | A D - B E - C F - |
+*/
+    #warning "TODO"
 }
