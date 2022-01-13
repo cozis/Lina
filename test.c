@@ -1,117 +1,125 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stddef.h>
+#include <string.h>
 #include "lina.h"
 
-#define NUM_TESTS 6      //Number of tests case to create
-#define MAX_VALUE 15       //Max value a matrix can have
-
-typedef struct matrix_t
-{
-	double *A;
-	int m;
-	int n;
-}matrix_t;
-
-//Dinamically create NUM_TESTS tests case randomly generating matrices with random values (whom max is MAX_VALUE)
-//index from 0 to NUM_TESTS/3 will contain 2x3 matrices, index from NUM_TESTS/3 to 2*NUM_TESTS/3 3x3, and index from 2*NUM_TESTS/3 to NUM_TESTS 4x3
-void create_tests(matrix_t **tests);
-
-//Free the heap memory from the test structure
-void delete_tests(matrix_t **tests);
-
 //Print the matrix A with size m by n
-void pmatrix(double *A, int m, int n);
+void pmatrix(FILE *fp, double *A, int m, int n);
+
+struct {
+	double A[9], // Left argument
+		   B[9], // Right argument
+		   C[9]; // Expected result
+} dot_tests[] = {
+	{ 
+		.A = {
+			1, 0, 0,
+			0, 1, 0,
+			0, 0, 1,
+		},
+		.B = {
+			1, 0, 0,
+			0, 1, 0,
+			0, 0, 1,
+		},
+		.C = {
+			1, 0, 0,
+			0, 1, 0,
+			0, 0, 1,
+		},
+	},
+};
+
+struct {
+	double A[9], // Input
+	       B[9], // Expected output
+	       factor; // Scale factor
+} scale_tests[] = {
+	{
+		.A = {
+			1, 1, 1,
+			1, 1, 1,
+			1, 1, 1,
+		},
+		.B = {
+			2, 2, 2,
+			2, 2, 2,
+			2, 2, 2,
+		},
+		.factor = 2,
+	},
+};
 
 int main()
 {
-	matrix_t *tests[NUM_TESTS];
+	// Evaluate dot product tests.
+	{
+		int dot_passed = 0;
+		int dot_total  = sizeof(dot_tests) / sizeof(*dot_tests);
 
-	create_tests(tests);
+		for(int i = 0; i < dot_total; i += 1)
+			{
+				double R[9];
 
-	for(int i=0;i< NUM_TESTS;i++)
-		pmatrix(tests[i]->A,tests[i]->m,tests[i]->n);
+				lina_dot(dot_tests[i].A, dot_tests[i].B, R, 3, 3, 3);
 
-	double *C = malloc(sizeof(*C)*tests[0]->m*tests[0]->n);
+				if(!memcmp(R, dot_tests[i].C, sizeof(R)))
+					{
+						fprintf(stderr, "Dot product test %d passed.\n", i);
+						dot_passed += 1;
+					}
+				else
+					{
+						fprintf(stderr, "Dot product test %d failed:\n  got matrix:\n\n", i);
+						pmatrix(stderr, R, 3, 3);
+						fprintf(stderr, "  instead of:\n\n");
+						pmatrix(stderr, dot_tests[i].C, 3, 3);
+					}
+			}
+		fprintf(stderr, "\n\t%d dot products out of %d were succesful.\n\n", dot_passed, dot_total);
+	}
 
-	lina_scale(tests[0]->A,C,1.5,tests[0]->m,tests[0]->n);
+	
+	// Evaluate scaling tests.
+	{
+		int scale_passed = 0;
+		int scale_total  = sizeof(scale_tests) / sizeof(*scale_tests);
 
-	pmatrix(C,tests[0]->m,tests[0]->n);
+		for(int i = 0; i < scale_total; i += 1)
+			{
+				double R[9];
 
-	delete_tests(tests);
+				lina_scale(scale_tests[i].A, R, scale_tests[i].factor, 3, 3);
+
+				if(!memcmp(R, scale_tests[i].B, sizeof(R)))
+					{
+						fprintf(stderr, "Scaling test %d passed.\n", i);
+						scale_passed += 1;
+					}
+				else
+					{
+						fprintf(stderr, "Scaling test %d failed:\n  got matrix:\n\n", i);
+						pmatrix(stderr, R, 3, 3);
+						fprintf(stderr, "  instead of:\n\n");
+						pmatrix(stderr, scale_tests[i].B, 3, 3);
+					}
+			}
+		fprintf(stderr, "\n\t%d scalings out of %d were succesful.\n\n", scale_passed, scale_total);
+	}
 	return 0;
 }
 
-void pmatrix(double *A,int m,int n){
+void pmatrix(FILE *fp, double *A,int m,int n){
 
 	for(int i = 0; i<m; i++){
-
+		fprintf(fp, "    | ");
 		for(int j = 0; j< n; j++)
-			printf("%f\t",A[i*n + j]);
+			fprintf(fp, "%g ",A[i*n + j]);
 		
-		printf("\n");
+		fprintf(fp, "|\n");
 
 	}
 
-	printf("\n");
-
-}
-
-void create_tests(matrix_t **tests){
-
-	srand(1);
-
-	for(int i=0;i<NUM_TESTS;i++){
-
-		int rows;
-		int cols;
-
-		if(i < NUM_TESTS/3){
-			rows = 2;
-			cols = 3;
-		}
-		else if (i >= NUM_TESTS/3 && i < 2*NUM_TESTS/3)
-		{
-			rows = 3;
-			cols = 3;
-		}
-		else{
-			rows = 4;
-			cols = 3;
-		}
-		
-
-		
-		
-		double *ptr = malloc(sizeof(*ptr)*rows*cols);
-		
-		for(int j=0;j<rows*cols;j++){
-
-			ptr[j] = rand() % MAX_VALUE;
-
-		}
-
-		matrix_t *m_point = malloc(sizeof(matrix_t));
-
-		m_point->A = ptr;
-		m_point->m = rows;
-		m_point->n = cols;
-
-		tests[i] = m_point;
-	}
-	
-
-}
-
-void delete_tests(matrix_t **tests){
-
-	for(int i=0;i<NUM_TESTS;i++){
-
-		free(tests[i]->A);
-		free(tests[i]);
-
-	}
-
-	tests = NULL;
+	fprintf(fp, "\n");
 
 }

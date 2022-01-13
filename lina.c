@@ -1,7 +1,10 @@
-#include <stddef.h> // NULL
-#include <assert.h> // assert
+#include <stddef.h>
+#include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 #include "lina.h"
+
+#define check assert
 
 void lina_dot(double *A, double *B, double *C, int m, int n, int l){
 
@@ -10,15 +13,15 @@ void lina_dot(double *A, double *B, double *C, int m, int n, int l){
     assert(A != C && B != C);
 
     //Actual dot
-    //Iteration on A's rows
+    //Iteration over A's rows
     for(int i=0; i < m;i++){
-        
-        double pos = 0;
 
-        //Iteration on B's collumns
+        //Iteration over B's columns
         for(int k=0; k < l; k++){
 
-            //Iteration on the single B collumn for executing the product of sum
+            double pos = 0;
+            
+            //Iteration over the single B column for executing the product of sum
             for(int j=0; j < n; j++)
                 pos += A[i * n + j] * B[j * l + k];
 
@@ -60,16 +63,13 @@ void lina_transpose(double *A, double *B, int m, int n){
     assert(m > 0 && n > 0);
     assert(A != NULL && B != NULL);
 
+#warning "Try to think better algorithm"
+
     double *support = malloc(sizeof(*support) * m * n);
 
-    for(int i=0;i<n;i++){
+    check(support != NULL);
 
-        for(int j=0;j<m;j++){
-
-            support[i*m + j] = A[j*n + i];
-        }
-    
-    }
+    memcpy(support, A, sizeof(*support) * m * n);
 
     for(int i=0;i<n;i++){
 
@@ -81,19 +81,4 @@ void lina_transpose(double *A, double *B, int m, int n){
     }
 
     free(support);
-    support = NULL;
-
-/*
-    | A B C |
-    | D E F |
-    | - - - |
-
-    | A D - |
-    | B E - |
-    | C F - |
-
-    | A B C D E F - - - |
-    | A D - B E - C F - |
-*/
-    #warning "Try to think better algorithm"
 }
