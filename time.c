@@ -5,7 +5,7 @@
 #include <string.h>
 #include "lina.h"
 
-/* This function compares the lina_transpose
+/* This program compares the lina_transpose
 ** implementation against the naive implementation.
 */
 
