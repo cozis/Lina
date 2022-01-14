@@ -16,11 +16,20 @@ static void naive_transpose(double *A, double *B, int m, int n)
     assert(m > 0 && n > 0);
     assert(A != NULL && B != NULL);
 
-    double *support = malloc(sizeof(*support) * m * n);
+    double *support;
 
-    check(support != NULL);
+    if(A == B)
+    	{
+    		support = malloc(sizeof(*support) * m * n);
+    		
+    		check(support != NULL);
 
-    memcpy(support, A, sizeof(*support) * m * n);
+		    memcpy(support, A, sizeof(*support) * m * n);
+    	}
+    else
+    	{
+    		support = A;
+    	}
 
     for(int i = 0; i < n; i++)
         
@@ -28,7 +37,21 @@ static void naive_transpose(double *A, double *B, int m, int n)
 
             B[j*n + i] = support[i*m + j];
 
-    free(support);
+    if(support != A)
+	    free(support);
+}
+
+// Wrap transposing functions and return their
+// execution time.
+static double time_transposition(void (*callback)(double*, double*, int, int), double *A, double *B, int m, int n)
+{
+	clock_t begin = clock();
+
+	callback(A, B, m, n);
+
+	clock_t end = clock();
+	
+	return (double) (end - begin) / CLOCKS_PER_SEC;
 }
 
 int main()
@@ -41,22 +64,22 @@ int main()
 
 	memset(big, 0, sizeof(double) * m * n);
 
-	double t1, t2;
-	clock_t begin, end;
+	printf("lina_transpose took %gms (in-place)\n", 
+		1000 * time_transposition(lina_transpose, big, big, m, n));
 
-	begin = clock();
-	lina_transpose(big, big, m, n);
-	end = clock();
-	t1 = (double) (end - begin) / CLOCKS_PER_SEC;
+	printf("naive_transpose took %gms (in-place)\n", 
+		1000 * time_transposition(naive_transpose, big, big, m, n));
 
-	begin = clock();
-	naive_transpose(big, big, m, n);
-	end = clock();
-	t2 = (double) (end - begin) / CLOCKS_PER_SEC;
+	double *big2 = malloc(sizeof(double) * m * n);
+	check(big2 != NULL);
 
-	printf("lina_transpose took %gms\n", t1*1000);
-	printf("naive_transpose took %gms\n", t2*1000);
+	printf("lina_transpose took %gms\n", 
+		1000 * time_transposition(lina_transpose, big, big2, m, n));
+	
+	printf("naive_transpose took %gms\n", 
+		1000 * time_transposition(naive_transpose, big, big2, m, n));
 
 	free(big);
+	free(big2);
 	return 0;
 }
