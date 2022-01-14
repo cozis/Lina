@@ -4,7 +4,7 @@
 #include "lina.h"
 
 //Print the matrix A with size m by n
-void pmatrix(FILE *fp, double *A, int m, int n);
+static void pmatrix(FILE *fp, double *A, int m, int n);
 
 struct {
 	double A[9], // Left argument
@@ -48,6 +48,60 @@ struct {
 		},
 		.factor = 2,
 	},
+};
+
+struct {
+	double A[9], B[9];
+} transp_tests[] = {
+	{
+		.A = {
+			1, 0, 0,
+			0, 2, 0,
+			0, 0, 3,
+		},
+		.B = {
+			1, 0, 0,
+			0, 2, 0,
+			0, 0, 3,
+		},
+	},
+	{
+		.A = {
+			1, 2, 3,
+			0, 0, 0,
+			0, 0, 0,
+		},
+		.B = {
+			1, 0, 0,
+			2, 0, 0,
+			3, 0, 0,
+		},
+	},
+	{
+		.A = {
+			0, 1, 0,
+			0, 2, 0,
+			0, 3, 0,
+		},
+		.B = {
+			0, 0, 0,
+			1, 2, 3,
+			0, 0, 0,
+		},
+	},
+	{
+		.A = {
+			0, 0, 1,
+			0, 0, 2,
+			0, 0, 3,
+		},
+		.B = {
+			0, 0, 0,
+			0, 0, 0,
+			1, 2, 3,
+		},
+	},
+
 };
 
 int main()
@@ -106,10 +160,38 @@ int main()
 			}
 		fprintf(stderr, "\n\t%d scalings out of %d were succesful.\n\n", scale_passed, scale_total);
 	}
+
+	// Evaluate transposition tests.
+	{
+		int transp_passed = 0;
+		int transp_total  = sizeof(transp_tests) / sizeof(*transp_tests);
+
+		for(int i = 0; i < transp_total; i += 1)
+			{
+				double R[9];
+
+				lina_transpose(transp_tests[i].A, R, 3, 3);
+
+				if(!memcmp(R, transp_tests[i].B, sizeof(R)))
+					{
+						fprintf(stderr, "Transposition test %d passed.\n", i);
+						transp_passed += 1;
+					}
+				else
+					{
+						fprintf(stderr, "Transposition test %d failed:\n  got matrix:\n\n", i);
+						pmatrix(stderr, R, 3, 3);
+						fprintf(stderr, "  instead of:\n\n");
+						pmatrix(stderr, transp_tests[i].B, 3, 3);
+					}
+			}
+		fprintf(stderr, "\n\t%d transpositions out of %d were succesful.\n\n", transp_passed, transp_total);
+	}
+
 	return 0;
 }
 
-void pmatrix(FILE *fp, double *A,int m,int n){
+static void pmatrix(FILE *fp, double *A,int m,int n){
 
 	for(int i = 0; i<m; i++){
 		fprintf(fp, "    | ");

@@ -20,7 +20,7 @@ void lina_dot(double *A, double *B, double *C, int m, int n, int l){
         for(int k=0; k < l; k++){
 
             double pos = 0;
-            
+
             //Iteration over the single B column for executing the product of sum
             for(int j=0; j < n; j++)
                 pos += A[i * n + j] * B[j * l + k];
@@ -71,14 +71,11 @@ void lina_transpose(double *A, double *B, int m, int n){
 
     memcpy(support, A, sizeof(*support) * m * n);
 
-    for(int i=0;i<n;i++){
+    for(int i = 0; i < n; i++)
+        
+        for(int j = 0; j < m; j++)
 
-        for(int j=0;j<m;j++){
-
-            B[i*m + j] = support[i*m + j];
-        }
-    
-    }
+            B[j*n + i] = support[i*m + j];
 
     free(support);
 }
