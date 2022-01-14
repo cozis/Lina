@@ -191,7 +191,7 @@ static int scanValue(FILE *fp, char *buffer, int max_length, char first, char *f
 double *lina_loadMatrixFromStream(FILE *fp, int *width, int *height, char **error)
 {
     assert(width != NULL && height != NULL);
-
+    
     if(fp == NULL)
         fp = stdin;
 

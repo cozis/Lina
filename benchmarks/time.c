@@ -7,6 +7,8 @@
 
 /* This program compares the lina_transpose
 ** implementation against the naive implementation.
+** Build it with:
+**   $ gcc time.c lina.c -o time -Wall -Wextra -O3
 */
 
 #define check assert
