@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include "lina.h"
+
+#define check assert
 
 //Print the matrix A with size m by n
 static void pmatrix(FILE *fp, double *A, int m, int n);
@@ -51,57 +54,91 @@ struct {
 };
 
 struct {
-	double A[9], B[9];
+	double *A, *B;
+	int m, n;
 } transp_tests[] = {
 	{
-		.A = {
+		.A = (double[]) {
 			1, 0, 0,
 			0, 2, 0,
 			0, 0, 3,
 		},
-		.B = {
+		.B = (double[]) {
 			1, 0, 0,
 			0, 2, 0,
 			0, 0, 3,
 		},
+		.m = 3,
+		.n = 3,
 	},
 	{
-		.A = {
+		.A = (double[]) {
 			1, 2, 3,
 			0, 0, 0,
 			0, 0, 0,
 		},
-		.B = {
+		.B = (double[]) {
 			1, 0, 0,
 			2, 0, 0,
 			3, 0, 0,
 		},
+		.m = 3,
+		.n = 3,
 	},
 	{
-		.A = {
+		.A = (double[]) {
 			0, 1, 0,
 			0, 2, 0,
 			0, 3, 0,
 		},
-		.B = {
+		.B = (double[]) {
 			0, 0, 0,
 			1, 2, 3,
 			0, 0, 0,
 		},
+		.m = 3,
+		.n = 3,
 	},
 	{
-		.A = {
+		.A = (double[]) {
 			0, 0, 1,
 			0, 0, 2,
 			0, 0, 3,
 		},
-		.B = {
+		.B = (double[]) {
 			0, 0, 0,
 			0, 0, 0,
 			1, 2, 3,
 		},
+		.m = 3,
+		.n = 3,
 	},
-
+	{
+		.A = (double[]) {
+			1, 2, 3,
+			4, 5, 6,
+		},
+		.B = (double[]) {
+			1, 4,
+			2, 5,
+			3, 6,
+		},
+		.m = 2,
+		.n = 3,
+	},
+	{
+		.A = (double[]) {
+			1, 4,
+			2, 5,
+			3, 6,
+		},
+		.B = (double[]) {
+			1, 2, 3,
+			4, 5, 6,
+		},
+		.m = 3,
+		.n = 2,
+	},
 };
 
 int main()
@@ -168,11 +205,16 @@ int main()
 
 		for(int i = 0; i < transp_total; i += 1)
 			{
-				double R[9];
+				int m = transp_tests[i].m;
+				int n = transp_tests[i].n;
 
-				lina_transpose(transp_tests[i].A, R, 3, 3);
+				double R[32];
 
-				if(!memcmp(R, transp_tests[i].B, sizeof(R)))
+				assert(sizeof(R) >= m * n * sizeof(R[0]));
+
+				lina_transpose(transp_tests[i].A, R, m, n);
+
+				if(!memcmp(R, transp_tests[i].B, sizeof(R[0]) * m * n))
 					{
 						fprintf(stderr, "Transposition test %d passed.\n", i);
 						transp_passed += 1;
@@ -180,9 +222,9 @@ int main()
 				else
 					{
 						fprintf(stderr, "Transposition test %d failed:\n  got matrix:\n\n", i);
-						pmatrix(stderr, R, 3, 3);
+						pmatrix(stderr, R, m, n);
 						fprintf(stderr, "  instead of:\n\n");
-						pmatrix(stderr, transp_tests[i].B, 3, 3);
+						pmatrix(stderr, transp_tests[i].B, m, n);
 					}
 			}
 		fprintf(stderr, "\n\t%d transpositions out of %d were succesful.\n\n", transp_passed, transp_total);
