@@ -15,12 +15,44 @@ struct {
 	double *matrix;
 	int w, h;
 } load_tests[] = {
-	{ .src = "", .matrix = NULL },
-	{ .src = "  []  ", .matrix = NULL },
-	{ .src = "  [1]  ", .matrix = (double[]) {1}, .w = 1, .h = 1 },
-	{ .src = "[1 2 3]", .matrix = (double[]) {1, 2, 3}, .w = 3, .h = 1 },
-	{ .src = "[1, 2, 3]", .matrix = (double[]) {1, 2, 3}, .w = 1, .h = 3 },
-	{ .src = "[1 2 3, 4 5 6, 7 8 9]", .matrix = (double[]) {1, 2, 3, 4, 5, 6, 7, 8, 9}, .w = 3, .h = 3 },
+	{ 
+		.src = "", 
+		.matrix = NULL 
+	},
+	{ 
+		.src = "  []  ", 
+		.matrix = NULL 
+	},
+	{ 
+		.src = "  [1]  ", 
+		.matrix = (double[]) {1}, 
+		.w = 1, 
+		.h = 1 
+	},
+	{ 
+		.src = "[1 2 3]", 
+		.matrix = (double[]) {1, 2, 3}, 
+		.w = 3, 
+		.h = 1 
+	},
+	{ 
+		.src = "[1, 2, 3]", 
+		.matrix = (double[]) {1, 2, 3}, 
+		.w = 1, 
+		.h = 3 
+	},
+	{ 
+		.src = "[1 2 3, 4 5 6, 7 8 9]", 
+		.matrix = (double[]) {1, 2, 3, 4, 5, 6, 7, 8, 9}, 
+		.w = 3, 
+		.h = 3 
+	},
+	{ 
+		.src = "[1.0 2.0 3.0, 4.7 5.0 6.0, 7.0 8.0 9.5]", 
+		.matrix = (double[]) {1, 2, 3, 4.7, 5, 6, 7, 8, 9.5}, 
+		.w = 3, 
+		.h = 3 
+	},
 };
 
 int main()

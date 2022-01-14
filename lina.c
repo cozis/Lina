@@ -116,9 +116,13 @@ static int scanValue(FILE *fp, char *buffer, int max_length, char first, char *f
     do
         {
             if(n == max_length)
-                // ERROR: Internal buffer is too small to hold
-                //        the representation of this item.
-                return 0;
+                {
+                    // ERROR: Internal buffer is too small to hold
+                    //        the representation of this item.
+                    *error = "Internal buffer is too small to hold "
+                             "the representation of a numeric value";
+                    return 0;
+                }
 
             buffer[n++] = c;
             
@@ -136,27 +140,38 @@ static int scanValue(FILE *fp, char *buffer, int max_length, char first, char *f
     if(dot)
         {
             if(n == max_length)
-                // ERROR: Internal buffer is too small to hold
-                //        the representation of this item.
-                //        (The dot doesn't fit.)
-                return 0;
+                {
+                    // ERROR: Internal buffer is too small to hold
+                    //        the representation of this item.
+                    //        (The dot doesn't fit.)
+                    *error = "Internal buffer is too small to hold "
+                             "the representation of a numeric value";
+                    return 0;
+                }
 
             buffer[n++] = '.';
 
             c = getc(fp);
 
             if(!isdigit(c))
-                // ERROR: Got something other than a 
-                //        digit after the dot.
-                return 0;
-
+                {
+                    // ERROR: Got something other than a 
+                    //        digit after the dot.
+                    *error = "Got something other than a digit after the dot.";
+                    return 0;
+                }
+            
             do
                 {
                     if(n == max_length)
-                        // ERROR: Internal buffer is too small 
-                        //        to hold the representation of
-                        //        this item.
-                        return 0;
+                        {
+                            // ERROR: Internal buffer is too small 
+                            //        to hold the representation of
+                            //        this item.
+                            *error = "Internal buffer is too small to hold "
+                                     "the representation of a numeric value";
+                            return 0;
+                        }
 
                     buffer[n++] = c;
 
