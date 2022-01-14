@@ -14,3 +14,8 @@ void lina_scale(double *A, double *B, double k, int m, int n);
 // Evaluate B = A^t (the transpose of A) where A is m by n.
 // NOTE: B can be the same location of A.
 void lina_transpose(double *A, double *B, int m, int n);
+
+// Load from a stream a matrix in the form [a b c.. , d e f.. , ...] 
+// where a,b,c,.. are either integer or floating point values.
+// The returned pointer must be deallocated using `free`.
+double *lina_loadMatrixFromStream(FILE *fp, int *width, int *height, char **error);
