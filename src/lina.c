@@ -7,8 +7,26 @@
 #include <ctype.h>
 #include "lina.h"
 
-#define check assert
-
+/* Function: lina_dot
+**
+**   Evaluates the dot product C = A * B. The A,B
+**   matrices are, respectively, mxn and nxl, which
+**   means C is mxl. The resulting C matrix is stored
+**   in a memory  region specified by the caller. 
+**
+** Notes:
+**
+**   - A,B must be provided as contiguous memory regions
+**     represented in row-major order. Also, C is stored
+**     that way too.
+**
+**   - The C pointer CAN'T refer to the same memory region 
+**     of either A or B.
+**
+**   - m,n,l must be greater than 0.
+**
+**   - This function can never fail.
+*/
 void lina_dot(double *A, double *B, double *C, int m, int n, int l){
 
     assert(m > 0 && n > 0 && l > 0);
@@ -35,6 +53,25 @@ void lina_dot(double *A, double *B, double *C, int m, int n, int l){
         }
 }
 
+/* Function: lina_add
+**
+**   Evaluates the matrix addition C = A + B. The result
+**   is stored in a memory region provided by the caller.
+**   All matrices involved are mxn. 
+**
+** Notes:
+**
+**   - A,B must be provided as contiguous memory regions
+**     represented in row-major order. Also, C is stored
+**     that way too.
+**
+**   - The C pointer CAN refer to the same memory region 
+**     of either A or B.
+**
+**   - m,n must be greater than 0.
+**
+**   - This function can never fail.
+*/
 void lina_add(double *A, double *B, double *C, int m, int n){
 
     assert(m > 0 && n > 0);
@@ -46,18 +83,42 @@ void lina_add(double *A, double *B, double *C, int m, int n){
             C[i*n + j] = A[i*n + j] + B[i*n + j];
 }
 
+/* Function: lina_scale
+**
+**   Evaluate B = k * A, where A,B are matrices mxn 
+**   and  k is a scalar. The result is stored in a 
+**   memory region provided by the caller. 
+**
+** Notes:
+**   - The B pointer CAN refer to the same memory 
+**     region of A.
+**
+**   - m,n must be greater than 0.
+**
+**   - This function can never fail.
+*/
 void lina_scale(double *A, double *B, double k, int m, int n){
 
     assert(m > 0 && n > 0);
     assert(A != NULL && B != NULL);
 
-    for(int i = 0; i < m; i++)
-
-        for(int j = 0; j < n; j++)
-
-            B[i*n + j] = k * A[i*n + j];
+    for(int i = 0; i < m*n; i += 1)
+        B[i] = k * A[i];   
 }
 
+/* Function: lina_transpose
+**
+**   Evaluate the transpose of A and store it in B. 
+**   The matrix A is mxn, which means B will be nxm.
+**
+** Notes:
+**   - The B pointer CAN refer to the same memory 
+**     region of A.
+**
+**   - m,n must be greater than 0.
+**
+**   - This function can never fail.
+*/
 void lina_transpose(double *A, double *B, int m, int n)
 {
     assert(m > 0 && n > 0);
@@ -99,11 +160,44 @@ void lina_transpose(double *A, double *B, int m, int n)
         }
 }
 
-// Returns 0 if an error occurred, 1 if an integer 
-// was scanned and -1 if a floating point was scanned.
+/* Function: scanValue
+**
+**   Scans a numeric value (such as 12, 4.5, 2.1442) 
+**   from the stream [fp] and store it in [buffer].
+**   If more than [max_length] bytes would be written
+**   to the buffer, this function fails. The first
+**   character of the sequence is assumed to have 
+**   been already read and is provided through the
+**   [first] argument.
+**
+**   If the function fails, 0 is returned and an error
+**   description is returned through the [error] pointer.
+**   If it succeded, then:
+**
+**     - The [buffer] contains the whole zero-terminated
+**       character sequence of the numeric value.
+**
+**     - Through the [final] pointer is returned the first
+**       character that wasn't part of the digit sequence
+**       (which was consumed by the function, so if the
+**       caller were to read a character from the stream,
+**       it would get the second character after the digit
+**       sequence).
+**
+**     - 1 is returned if the sequence represents an integer
+**       and -1 if the sequence represents a float.
+**   
+** Notes:
+**   - The buffer is always zero terminated if the
+**     function succeded.
+**
+**   - The [error] and [final] pointers are optional
+**     (they can be NULL).
+*/
 static int scanValue(FILE *fp, char *buffer, int max_length, char first, char *final, char **error)
 {
     assert(fp != NULL && buffer != NULL && error != NULL);
+    assert(max_length >= 0);
     assert(isdigit(first));
 
     int n = 0;
@@ -188,6 +282,49 @@ static int scanValue(FILE *fp, char *buffer, int max_length, char first, char *f
     return dot ? -1 : 1;
 }
 
+/* Function: lina_loadMatrixFromStream
+**
+**   Load from the stream [fp] a matrix encoded as an
+**   ASCII sequence in the form:
+**
+**     [a b c .. , d e f .. , ..]
+**
+**   where a,b,c,.. are either integers or floats.
+**   For instance, the 4x4 identity matrix is 
+**   represented as:
+**
+**     [1 0 0 0,
+**      0 1 0 0,
+**      0 0 1 0,
+**      0 0 0 1]
+**
+**   or, equivalently:
+**
+**     [1 0 0 0, 0 1 0 0, 0 0 1 0, 0 0 0 1]
+**
+**   since whitespace doesn't matter.
+**   The decoded matrix is returned through the return
+**   value and is dynamically allocated, therefore the
+**   caller must call [free] on it when he doesn't need
+**   it anymore. The dimensions of the matrix are returned
+**   through the [width] and [height] output arguments*
+**
+**   If an error occurres (either because an allocation
+**   failed or because the matrix syntax is invalid),
+**   NULL is returned and a human-readable description of
+**   what happened is returned through the [error] pointer.
+**
+** Notes:
+**   - This function skips any whitespace that comes before
+**     the matrix in the stream.
+**
+**   - It can be called multiple times on a stream to get
+**     more than one matrix from it.
+**
+**   - The [error] pointer is optional (it can be NULL).
+**
+**   - If the stream [fp] is NULL, then [stdin] is used.
+*/
 double *lina_loadMatrixFromStream(FILE *fp, int *width, int *height, char **error)
 {
     assert(width != NULL && height != NULL);
