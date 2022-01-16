@@ -124,11 +124,26 @@ void lina_transpose(double *A, double *B, int m, int n)
 
     if(m == 1 || n == 1)
         {
+            // For a matrix with height or width of 1
+            // row-major and column-major order coincide,
+            // so the stransposition doesn't change the
+            // the memory representation. A simple copy
+            // does the job.
+
             if(A != B) // Does the copy or the branch cost more?
                 memcpy(B, A, sizeof(A[0]) * m * n);
         }
     else if(m == n)
         {
+            // Iterate over the upper triangular portion of
+            // the matrix and switch each element with the
+            // corresponding one in the lower triangular portion.
+            // NOTE: We're assuming A,B might be the same matrix.
+            //       If A,B are the same matrix, then the diagonal
+            //       is copied onto itself. By removing the +1 in
+            //       the inner loop, the copying of the diagonal
+            //       is avoided.
+
             for(int i = 0; i < n; i += 1)
                 for(int j = 0; j < i+1; j += 1)
                     {
@@ -139,6 +154,20 @@ void lina_transpose(double *A, double *B, int m, int n)
         }
     else
         {
+            // Not only the matrix needs to be transposed
+            // assuming the destination matrix is the same
+            // as the source matrix, but the memory representation
+            // of the matrix needs to switch from row-major
+            // to col-major, so it's not as simple as switching
+            // value's positions.
+            // This algorithm starts from the A[0][1] value and
+            // moves it where it needs to go, then gets the value
+            // that was at that position and puts that in it's
+            // new position. This process is iterated until the
+            // starting point A[0][1] is overwritten with the
+            // new value. In this process the first and last
+            // value of the matrix never move.
+
             B[0] = A[0];
             B[m*n - 1] = A[m*n - 1];
 
