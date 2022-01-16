@@ -124,11 +124,10 @@ void lina_transpose(double *A, double *B, int m, int n)
 
     if(m == 1 || n == 1)
         {
-            memcpy(B, A, sizeof(A[0]) * m * n);
-            return;
+            if(A != B) // Does the copy or the branch cost more?
+                memcpy(B, A, sizeof(A[0]) * m * n);
         }
-
-    if(m == n)
+    else if(m == n)
         {
             for(int i = 0; i < n; i += 1)
                 for(int j = 0; j < i+1; j += 1)
