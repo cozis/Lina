@@ -161,7 +161,7 @@ void lina_transpose(double *A, double *B, int m, int n)
 /* Function: scanValue
 **
 **   Scans a numeric value (such as 12, 4.5, 2.1442) 
-**   from the stream [fp] and store it in [buffer].
+**   from the stream [fp] and stores it in [buffer].
 **   If more than [max_length] bytes would be written
 **   to the buffer, this function fails. The first
 **   character of the sequence is assumed to have 
@@ -305,7 +305,7 @@ static int scanValue(FILE *fp, char *buffer, int max_length, char first, char *f
 **   value and is dynamically allocated, therefore the
 **   caller must call [free] on it when he doesn't need
 **   it anymore. The dimensions of the matrix are returned
-**   through the [width] and [height] output arguments*
+**   through the [width] and [height] output arguments.
 **
 **   If an error occurres (either because an allocation
 **   failed or because the matrix syntax is invalid),
