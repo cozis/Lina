@@ -77,10 +77,8 @@ void lina_add(double *A, double *B, double *C, int m, int n){
     assert(m > 0 && n > 0);
     assert(A != NULL && B != NULL && C != NULL);
     
-    for(int i = 0; i < m; i++)
-        for(int j = 0; j < n; j++)
-
-            C[i*n + j] = A[i*n + j] + B[i*n + j];
+    for(int i = 0; i < m*n; i++)
+        C[i] = A[i] + B[i];
 }
 
 /* Function: lina_scale
@@ -143,7 +141,7 @@ void lina_transpose(double *A, double *B, int m, int n)
     else
         {
             B[0] = A[0];
-            B[m*n-1] = A[m*n-1];
+            B[m*n - 1] = A[m*n - 1];
 
             double item = A[1];
             int    next = m;
