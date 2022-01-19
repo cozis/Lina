@@ -566,3 +566,33 @@ double *lina_loadMatrixFromStream(FILE *fp, int *width, int *height, char **erro
 
     return matrix;
 }
+
+/* Function: lina_saveMatrixToStream
+**
+**   Save to the stream [fp] a matrix encoding it as an
+**   ASCII sequence in the form:
+**
+**     [a b c .. , d e f .. , ..]
+**
+**   For instance, the 4x4 identity matrix will
+**   be ancoded as:
+**
+**      [1 0 0 0, 0 1 0 0, 0 0 1 0, 0 0 0 1]
+**
+**   Since the matrix is in row-major order, the caller must
+**   specify the collumns and the rows of the matrix
+**   through [width] and [height] input arguments.
+**
+**   If an error occurres, a negative integer is returned 
+**   and a human-readable description of what happened 
+**   is returned through the [error] pointer.
+**
+** Notes:
+**   - It can be called multiple times on a stream to write
+**     more than one matrix on it.
+**
+**   - The [error] pointer is optional (it can be NULL).
+**
+**   - If the stream [fp] is NULL, then [stdout] is used.
+*/
+int lina_saveMatrixToStream(FILE *fp, int *width, int *height, char **error);
