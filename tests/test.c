@@ -57,19 +57,21 @@ typedef struct transpose_test{
 
 int main()
 {	
+	//Defining pointers to the test structures
 	add_test *add_tests;
 	dot_test *dot_tests;
 	scale_test *scale_tests;
 	transpose_test *transpose_tests;
 
+	//Number of tests for each lina functions
 	int n_dot_tests, n_add_tests, n_scale_tests, n_transpose_tests;
 	
+	//Opening dir stream
 	DIR *dir = opendir(PATH);
-
 	struct dirent *ep;
 	check(dir != NULL);
 
-
+	//Loading all the tests from files
 	while (ep = readdir(dir))
 	{
 		if(ep->d_type != DT_DIR || !strcmp(ep->d_name, ".") || !strcmp(ep->d_name, ".."))
@@ -497,6 +499,39 @@ int main()
 			fprintf(stdout, "Test on lina_scale() finished: %d out of %d tests were succesfull\n",passed_tests,n_scale_tests);
 		else
 			fprintf(stdout, "There are no tests for lina_scale() function.\n");
+	}
+
+	//Freeing the memory of all the heap variables
+	{
+		//Freeing add_tests memory
+		for(int i=0;i< n_add_tests;i++)
+		{
+			free(add_tests[i].A);
+			free(add_tests[i].B);
+			free(add_tests[i].C);
+		}
+
+		//Freeing dot_tests memory
+		for(int i=0;i< n_dot_tests;i++)
+		{
+			free(dot_tests[i].A);
+			free(dot_tests[i].B);
+			free(dot_tests[i].C);
+		}
+
+		//Freeing scale_tests memory
+		for(int i=0;i< n_scale_tests;i++)
+		{
+			free(scale_tests[i].A);
+			free(scale_tests[i].B);
+		}
+
+		//Freeing transpose_tests memory
+		for(int i=0;i< n_transpose_tests;i++)
+		{
+			free(transpose_tests[i].A);
+			free(transpose_tests[i].B);
+		}
 	}
 
 	return 0;
