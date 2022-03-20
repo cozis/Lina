@@ -569,13 +569,13 @@ double *lina_loadMatrixFromStream(FILE *fp, int *width, int *height, char **erro
 
 /* Function: lina_saveMatrixToStream
 **
-**   Save to the stream [fp] a matrix encoding it as an
+**   Save to the stream [fp] a matrix [A] encoding it as an
 **   ASCII sequence in the form:
 **
 **     [a b c .. , d e f .. , ..]
 **
 **   For instance, the 4x4 identity matrix will
-**   be ancoded as:
+**   be encoded as:
 **
 **      [1 0 0 0, 0 1 0 0, 0 0 1 0, 0 0 0 1]
 **
@@ -595,4 +595,53 @@ double *lina_loadMatrixFromStream(FILE *fp, int *width, int *height, char **erro
 **
 **   - If the stream [fp] is NULL, then [stdout] is used.
 */
-int lina_saveMatrixToStream(FILE *fp, int *width, int *height, char **error);
+int lina_saveMatrixToStream(FILE *fp, double *A, int width, int height, char **error)
+{
+    assert(A != NULL);
+
+    char *dummy;
+    if (error == NULL)
+        error = &dummy;
+    else
+        *error = NULL;
+    
+    if (width < 1)
+    {
+        // ERROR: The provided width is less than one.
+        *error = "The provided width is less than one";
+        return -1;
+    }
+    
+    if (height < 1)
+    {
+        // ERROR: The provided height is less than one.
+        *error = "The provided height is less than one";
+        return -1;
+    }
+
+    if (fp == NULL)
+        fp = stdout;
+
+    putc('[',fp);
+
+    for (int i = 0; i < height-1; i++)
+    {
+        for (int j = 0; j < width-1; j++)
+            fprintf(fp, "%f ", A[i*width + j]);
+
+        fprintf(fp, "%f, ", A[i*width + width-1]);
+
+    }
+
+    for (int j = 0; j < width-1; j++)
+            fprintf(fp, "%f ", A[(height-1)*width + j]);
+
+        fprintf(fp, "%f", A[(height-1)*width + width-1]);
+        
+    putc(']',fp);
+
+    return 0;
+    
+
+
+}
