@@ -27,8 +27,8 @@
 **
 **   - This function can never fail.
 */
-void lina_dot(double *A, double *B, double *C, int m, int n, int l){
-
+void lina_dot(double *A, double *B, double *C, int m, int n, int l)
+{
     assert(m > 0 && n > 0 && l > 0);
     assert(A != NULL && B != NULL && C != NULL);
     assert(A != C && B != C);
@@ -72,8 +72,8 @@ void lina_dot(double *A, double *B, double *C, int m, int n, int l){
 **
 **   - This function can never fail.
 */
-void lina_add(double *A, double *B, double *C, int m, int n){
-
+void lina_add(double *A, double *B, double *C, int m, int n)
+{
     assert(m > 0 && n > 0);
     assert(A != NULL && B != NULL && C != NULL);
     
@@ -607,14 +607,12 @@ int lina_saveMatrixToStream(FILE *fp, double *A, int width, int height, char **e
     
     if (width < 1)
     {
-        // ERROR: The provided width is less than one.
         *error = "The provided width is less than one";
         return -1;
     }
     
     if (height < 1)
     {
-        // ERROR: The provided height is less than one.
         *error = "The provided height is less than one";
         return -1;
     }
@@ -641,7 +639,29 @@ int lina_saveMatrixToStream(FILE *fp, double *A, int width, int height, char **e
     putc(']',fp);
 
     return 0;
+}
+
+void lina_conv(double *A, double *B, double *C, 
+               int Aw, int Ah, int Bw, int Bh)
+{
+    assert(A != NULL && B != NULL);
+    assert(Aw > 0 && Ah > 0 && Bw > 0 && Bh > 0);
+    assert((Bw & 1) && (Bh & 1)); // B must have odd height and width.
+
+    // NOTE: The output C matrix is smaller than 
+    //       A proportionally to B's size.
     
+    int Cw = Aw - Bw + 1;
+    int Ch = Ah - Bh + 1;
+    assert(Cw > 0 && Ch > 0);
 
+    for(int j = 0; j < Ah - Bh + 1; j += 1)
+        for(int i = 0; i < Aw - Bw + 1; i += 1)
+            {
+                C[j * Cw + i] = 0;
 
+                for(int v = 0; v < Bh; v += 1)
+                    for(int u = 0; u < Bw; u += 1)
+                        C[j * Cw + i] += A[(i - Bw/2 + u) * Aw + (i - Bh/2 + v)] * B[u * Bw + v];
+            }
 }
