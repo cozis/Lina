@@ -644,7 +644,8 @@ int lina_saveMatrixToStream(FILE *fp, double *A, int width, int height, char **e
 void lina_conv(double *A, double *B, double *C, 
                int Aw, int Ah, int Bw, int Bh)
 {
-    assert(A != NULL && B != NULL);
+    assert(A != NULL && B != NULL && C != NULL);
+    assert(A != B && B != C && C != A);
     assert(Aw > 0 && Ah > 0 && Bw > 0 && Bh > 0);
     assert((Bw & 1) && (Bh & 1)); // B must have odd height and width.
 
@@ -656,8 +657,8 @@ void lina_conv(double *A, double *B, double *C,
     assert(Cw > 0 && Ch > 0);
 
     // Iterate over each pixel of the result matrix..
-    for(int j = 0; j < Ah - Bh + 1; j += 1)
-        for(int i = 0; i < Aw - Bw + 1; i += 1)
+    for(int j = 0; j < Ch; j += 1)
+        for(int i = 0; i < Cw; i += 1)
             {
                 // ..and calculate it's value as
                 // the scalar product between the
@@ -666,6 +667,6 @@ void lina_conv(double *A, double *B, double *C,
                 C[j * Cw + i] = 0;
                 for(int v = 0; v < Bh; v += 1)
                     for(int u = 0; u < Bw; u += 1)
-                        C[j * Cw + i] += A[(i - Bw/2 + u) * Aw + (i - Bh/2 + v)] * B[u * Bw + v];
+                        C[j * Cw + i] += A[(i - Bw/2 + u) * Aw + (i - Bh/2 + v)] * B[v * Bw + u];
             }
 }
