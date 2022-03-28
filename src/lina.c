@@ -29,7 +29,15 @@
 */
 void lina_dot(double *A, double *B, double *C, int m, int n, int l)
 {
+    lina_dot2(A, B, C, 0, 0, 0, m, n, l);
+}
+
+void lina_dot2(double *A, double *B, double *C, 
+               int As, int Bs, int Cs, 
+               int m, int n, int l)
+{
     assert(m > 0 && n > 0 && l > 0);
+    assert(As >= 0 && Bs >= 0 && Cs >= 0);
     assert(A != NULL && B != NULL && C != NULL);
     assert(A != C && B != C);
 
@@ -46,9 +54,9 @@ void lina_dot(double *A, double *B, double *C, int m, int n, int l)
                     
                     for(int j=0; j < n; j++)
 
-                        pos += A[i*n + j] * B[j*l + k];
+                        pos += A[(i + As)*n + j] * B[(j + Bs) *l + k];
 
-                    C[i*l + k] = pos;
+                    C[(i + Cs)*l + k] = pos;
                 }
         }
 }
