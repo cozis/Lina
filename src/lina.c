@@ -53,10 +53,9 @@ void lina_dot2(double *A, double *B, double *C,
                     // for executing the product of sum
                     
                     for(int j=0; j < n; j++)
+                        pos += A[i*(n + As) + j] * B[j*(l + Bs) + k];
 
-                        pos += A[(i + As)*n + j] * B[(j + Bs) *l + k];
-
-                    C[(i + Cs)*l + k] = pos;
+                    C[i*(l + Cs) + k] = pos;
                 }
         }
 }
