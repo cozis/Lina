@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
+#include <math.h>
 #include "lina.h"
 
 /* Function: lina_dot
@@ -676,4 +677,153 @@ void lina_conv(double *A, double *B, double *C,
                     for(int u = 0; u < Bw; u += 1)
                         C[j * Cw + i] += A[(i - Bw/2 + u) * Aw + (i - Bh/2 + v)] * B[v * Bw + u];
             }
+}
+
+void lina_decompLU(double *A, double *L, double *U, int n)
+{
+    assert(n > 0);
+    assert(A != L && A != U && L != U);
+
+    // TODO: Handle the case when A can not be
+    //       decomposed.
+
+    memset(L, 0, sizeof(double) * n * n);
+    memset(U, 0, sizeof(double) * n * n);
+
+    /*
+    // Zero-out the lower half of L and the upper
+    // half of U.
+    for (int i = 0; i < n; i++)
+        for (int j = i+1; j < n; j++) 
+            {
+                L[j * n + i] = 0;
+                U[i * n + j] = 0;
+            }
+    */
+
+    for (int i = 0; i < n; i++)
+        {
+            for (int k = i; k < n; k++)
+                {
+                    int sum = 0; // L[i,j] * U[j,k]
+                    for (int j = 0; j < i; j++)
+                        sum += L[i * n + j] * U[j * n + k];
+
+                    U[i * n + k] = A[i * n + k] - sum;
+                }
+
+            for (int k = i; k < n; k++)
+                {
+                    if (i == k)
+                        L[i * n + i] = 1;
+                    else 
+                        {
+                            int sum = 0;
+                            for (int j = 0; j < i; j++)
+                                sum += L[k * n + j] * U[j * n + i];
+
+                            L[k * n + i] = (A[k * n + i] - sum) / U[i * n + i];
+                        }
+                }
+        }
+}
+
+bool lina_det(double *A, int n, double *det)
+{
+    // Allocate the space for the L,U matrices.
+    // I can't think of a version of this algorithm
+    // where a temporary buffer isn't necessary.
+    double *T = malloc(sizeof(double) * n * n * 2);
+    if (T == NULL)
+        return false;
+
+    // Do the decomposition
+    double *L = T;
+    double *U = T + (n * n);
+    lina_decompLU(A, L, U, n);
+
+    // Knowing that
+    //
+    //   A = LU
+    //
+    // then
+    //
+    //   det(A) = det(LU) = det(L)det(U)
+    //
+    // Since L and U are triangular, their 
+    // determinant is the product of their 
+    // diagonals, so the product of the 
+    // determinants is the product of both 
+    // the diagonals.
+
+    double prod = 1;
+    for (int i = 0; i < n; i++)
+        prod *= L[i * n + i] * U[i * n + i];
+    
+    if (det)
+        *det = prod;
+
+    free(T);
+    return true;
+}
+
+/* Checks that [A] is kind of upper triangular.
+**
+*/
+static bool isUpperTriangularEnough(double *A, int n, double eps)
+{
+    assert(A != NULL && n > 0 && epd > 0);
+
+    // Check that the lower triangular portion (without
+    // considering the diagonal) is zero.
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < i-1; i++)
+            if (A[i * n + j] > eps)
+                return false;
+
+    // Now check that the diagonal is also zero. Though
+    // since we are using the real version of the QR
+    // algorithm, only real eigenvalues can be found.
+    // Any comples eigenvalues will manifest as 2x2 blocks
+    // on the diagonal, so we need to allow such blocks.
+    // To do this, a non-zero block is allowed if it's
+    // not following another non-zero block.
+    //
+    // An important thing to note is that 2x2 matrices
+    // will always be considered upper triangular by this
+    // function, so the caller must manage this case.
+    bool flag = false;
+    for (int i = 0; i < n-1; i++) {
+        if (fabs(A[(i + 1) * n + i]) > eps) {
+            if (flag)
+                return false;
+            flag = true;
+        } else
+            flag = false;
+    }
+    return true;
+}
+
+bool lina_eig(double *M, double *E, int n)
+{
+    double *A = malloc(sizeof(double) * n * n * 3);
+    if (A == NULL)
+        return false;
+    memcpy(A, M, sizeof(double) * n * n);
+
+    double *Q = A + n * n;
+    double *R = Q + n * n;
+
+    do {
+        for (int i = 0; i < 100; i++) {
+            lina_decompQR(A, Q, R, n); // A(n) = QR
+            lina_dot(R, Q, A, n, n, n); // A(n+1) = RQ
+        }
+    } while (!isUpperTriangularEnough(A, n, 0.1));
+
+    for (int i = 0; i < n; i++)
+        E[i] = A[i * n + i];
+
+    free(A);
+    return true;
 }
