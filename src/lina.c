@@ -690,17 +690,6 @@ void lina_decompLU(double *A, double *L, double *U, int n)
     memset(L, 0, sizeof(double) * n * n);
     memset(U, 0, sizeof(double) * n * n);
 
-    /*
-    // Zero-out the lower half of L and the upper
-    // half of U.
-    for (int i = 0; i < n; i++)
-        for (int j = i+1; j < n; j++) 
-            {
-                L[j * n + i] = 0;
-                U[i * n + j] = 0;
-            }
-    */
-
     for (int i = 0; i < n; i++)
         {
             for (int k = i; k < n; k++)
@@ -728,6 +717,18 @@ void lina_decompLU(double *A, double *L, double *U, int n)
         }
 }
 
+/* Function: lina_det
+**
+**   Calculates the determinant of the n by n matrix A
+**   and returns it throught the output parameter [det].
+**
+**   If not enough memory is available, false is returned,
+**   else true is returned.
+**
+** Notes:
+**   - The output parameter [det] is optional. (you can
+**     ignore the result by passing NULL).
+*/
 bool lina_det(double *A, int n, double *det)
 {
     // Allocate the space for the L,U matrices.
@@ -772,7 +773,7 @@ bool lina_det(double *A, int n, double *det)
 */
 static bool isUpperTriangularEnough(double *A, int n, double eps)
 {
-    assert(A != NULL && n > 0 && epd > 0);
+    assert(A != NULL && n > 0 && eps > 0);
 
     // Check that the lower triangular portion (without
     // considering the diagonal) is zero.
@@ -804,16 +805,73 @@ static bool isUpperTriangularEnough(double *A, int n, double eps)
     return true;
 }
 
+/* Function: lina_eig
+**
+**   Calculates the eigenvalues of the n by n matrix M
+**   using the QR algorithm and stores them in the E
+**   vector.
+**
+**   If not enough memory is available, this function
+**   aborts returning false. If all went well, true is
+**   returned.
+**
+** Notes:
+**   - The algorithm is the real version of the QR algorithm,
+**     so the result is correct only for real eigenvalues. 
+**
+** Algorithm:
+**
+**   The algorithm works by decomposing the M matrix into
+**   the product of two matrices Q and R, such that Q is
+**   orthonormal and R is upper triangular:
+**
+**       M = QR
+**
+**   Q and R are then multiplied in inverse order to obtain
+**   a new matrix M1, which is then decomposed in two new
+**   matrices Q1,R1. The algorithm is iterated n times until 
+**   the matrix Mn is upper triangular:
+**
+**       M = QR  ->  RQ = M(1)
+**
+**       M(1) = Q(1)R(1)  ->  R(1)Q(1) = M(2)
+**
+**       M(2) = Q(2)R(2)  ->  R(2)Q(2) = M(3)
+**
+**              ...
+**
+**       M(n-1) = Q(n-1)R(n-1)  ->  R(n-1)Q(n-1) = M(n)
+**
+**       M(n) <--- Triangular!
+**
+**   The eigenvalues of M(n) are the same as M. Being upper 
+**   triangular, M(n) has its eigenvalues on its diagonal,
+**   so we just need to scan the diagonal and store it into
+**   the E vector.
+*/
 bool lina_eig(double *M, double *E, int n)
 {
-    double *A = malloc(sizeof(double) * n * n * 3);
-    if (A == NULL)
+    // Allocate space for three matrices n by n
+    double *T = malloc(sizeof(double) * n * n * 3);
+    if (T == NULL)
         return false;
-    memcpy(A, M, sizeof(double) * n * n);
 
+    double *A = T;
     double *Q = A + n * n;
     double *R = Q + n * n;
+    memcpy(A, M, sizeof(double) * n * n);
 
+    // At least 100 iterations are done. This is because
+    // the QR algorithm doesn't allow complex eigenvalues,
+    // so the A matrix may converge to a matrix with 2x2
+    // blocks on the diagonal. In general, the algorithm
+    // must iterate until the end result is triangular,
+    // but that may never be the case, so we end when the
+    // result matrix is "kind of triangular" (triangular
+    // with 2x2 blocks on the diagonal). But by using this
+    // rule, a 2x2 matrix will be considered as tringular
+    // from the start, which is not right! That's why we
+    // do at least 100 warm-up iterations.
     do {
         for (int i = 0; i < 100; i++) {
             lina_decompQR(A, Q, R, n); // A(n) = QR
@@ -821,9 +879,10 @@ bool lina_eig(double *M, double *E, int n)
         }
     } while (!isUpperTriangularEnough(A, n, 0.1));
 
+    // Export the diagonal of the iteration result
     for (int i = 0; i < n; i++)
         E[i] = A[i * n + i];
 
-    free(A);
+    free(T);
     return true;
 }

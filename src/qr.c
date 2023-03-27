@@ -77,18 +77,18 @@ scalar_product(vector_t V, vector_t U)
 }
 
 static double 
+calculate_norm(vector_t V)
+{
+    double sum_of_squares = scalar_product(V, V);
+    return sqrt(sum_of_squares);
+}
+
+static double 
 normalize_inplace(vector_t V)
 {
-    // Calculate the sum of the component's squares
-    double sum = scalar_product(V, V);
-
-    // Calculate the norm and scale the column
-    // only if the norm isn't zero.
-    double norm = sqrt(sum);
-    
+    double norm = calculate_norm(V);
     if (norm != 0)
         scale_vector_inplace(V, 1/norm);
-    
     return norm;
 }
 
