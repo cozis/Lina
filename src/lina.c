@@ -893,7 +893,7 @@ bool lina_eig(double *M, double complex *E, int n)
         // The current diagonal entry is A[i*n + i],
         // so if this is the first entry of a 2x2 block,
         // its lower entry A[(i+1)*n + i] will be non-zero
-        if (fabs(A[(i+1) * n + i]) > eps) {
+        if (i+1 < n && fabs(A[(i+1) * n + i]) > eps) {
 
             // It's a 2x2 block. Unpack the complex eigenvalues
             // using the quadratic formula. (Is there a better
