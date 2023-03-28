@@ -1,3 +1,4 @@
+#include <complex.h>
 #include <stdbool.h>
 
 /* ---- Operations ---- */
@@ -14,7 +15,7 @@ void lina_dot2(double *A, double *B, double *C,
                int As, int Bs, int Cs, 
                int m, int n, int l);
 
-bool lina_eig(double *M, double *E, int n);
+bool lina_eig(double *M, double complex *E, int n);
 void lina_decompLU(double *A, double *L, double *U, int n);
 void lina_decompQR(double *A, double *Q, double *R, int n);
 void lina_orthoNormGramSchmidt(double *A, double *Q, int n);

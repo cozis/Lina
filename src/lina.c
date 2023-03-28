@@ -778,18 +778,18 @@ static bool isUpperTriangularEnough(double *A, int n, double eps)
     // Check that the lower triangular portion (without
     // considering the diagonal) is zero.
     for (int i = 0; i < n; i++)
-        for (int j = 0; j < i-1; i++)
+        for (int j = 0; j < i-1; j++)
             if (A[i * n + j] > eps)
                 return false;
 
-    // Now check that the diagonal is also zero. Though
-    // since we are using the real version of the QR
-    // algorithm, only real eigenvalues can be found.
-    // Any comples eigenvalues will manifest as 2x2 blocks
-    // on the diagonal, so we need to allow such blocks.
-    // To do this, a non-zero block is allowed if it's
-    // not following another non-zero block.
-    //
+    // Now check that the subdiagonal is also zero, 
+    // though since we are using the real version of 
+    // the QR algorithm, only real eigenvalues can be
+    // found. Any comples eigenvalues will manifest 
+    // as 2x2 blocks on the diagonal, so we need to 
+    // allow such blocks. To do this, a non-zero block 
+    // is allowed if it's not following another non-zero
+    // block.
     // An important thing to note is that 2x2 matrices
     // will always be considered upper triangular by this
     // function, so the caller must manage this case.
@@ -802,22 +802,20 @@ static bool isUpperTriangularEnough(double *A, int n, double eps)
         } else
             flag = false;
     }
+
+    // NOTE: Ideas were taken from [https://math.stackexchange.com/questions/4352389/exact-stop-condition-for-qr-algorithm]
     return true;
 }
 
 /* Function: lina_eig
 **
 **   Calculates the eigenvalues of the n by n matrix M
-**   using the QR algorithm and stores them in the E
-**   vector.
+**   using the (unshifted) QR algorithm and stores them 
+**   in the E vector.
 **
 **   If not enough memory is available, this function
 **   aborts returning false. If all went well, true is
 **   returned.
-**
-** Notes:
-**   - The algorithm is the real version of the QR algorithm,
-**     so the result is correct only for real eigenvalues. 
 **
 ** Algorithm:
 **
@@ -847,9 +845,15 @@ static bool isUpperTriangularEnough(double *A, int n, double eps)
 **   The eigenvalues of M(n) are the same as M. Being upper 
 **   triangular, M(n) has its eigenvalues on its diagonal,
 **   so we just need to scan the diagonal and store it into
-**   the E vector.
+**   the E vector. If the original matrix has complex roots,
+**   the M(n) sequence will converge to a matrix with a 
+**   non-zero 2x2 block on the diagonal for each pair of
+**   complex roots. If that's the case, these blocks must
+**   be unpacked into the complex values using the quadratic
+**   formula.
+**   
 */
-bool lina_eig(double *M, double *E, int n)
+bool lina_eig(double *M, double complex *E, int n)
 {
     // Allocate space for three matrices n by n
     double *T = malloc(sizeof(double) * n * n * 3);
@@ -872,16 +876,79 @@ bool lina_eig(double *M, double *E, int n)
     // rule, a 2x2 matrix will be considered as tringular
     // from the start, which is not right! That's why we
     // do at least 100 warm-up iterations.
+    double eps = 0.1;
+    int batch = 100;
     do {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < batch; i++) {
             lina_decompQR(A, Q, R, n); // A(n) = QR
             lina_dot(R, Q, A, n, n, n); // A(n+1) = RQ
         }
-    } while (!isUpperTriangularEnough(A, n, 0.1));
+    } while (!isUpperTriangularEnough(A, n, eps));
 
-    // Export the diagonal of the iteration result
-    for (int i = 0; i < n; i++)
-        E[i] = A[i * n + i];
+    // Now we export the diagonal of the iteration result
+    // also looking out for 2x2 diagonal blocks, in which
+    // case we need to unpack their complex eigenvalues
+    for (int i = 0; i < n; i++) {
+
+        // The current diagonal entry is A[i*n + i],
+        // so if this is the first entry of a 2x2 block,
+        // its lower entry A[(i+1)*n + i] will be non-zero
+        if (fabs(A[(i+1) * n + i]) > eps) {
+
+            // It's a 2x2 block. Unpack the complex eigenvalues
+            // using the quadratic formula. (Is there a better
+            // way?)
+            
+            double a = A[(i+0) * n + (i+0)];
+            double b = A[(i+0) * n + (i+1)];
+            double c = A[(i+1) * n + (i+0)];
+            double d = A[(i+1) * n + (i+1)];
+            
+            // Given the block is:
+            //
+            //   | a  b |
+            //   | c  d |
+            //
+            // Then the eigenvalues are the roots of:
+            //
+            //   det(| a-y  b   |) = (a-y)(d-y) - bc = y^2 - (a + d)y + (ad - bc)
+            //       | c    d-y |
+            //
+            // For simplicity:
+            //
+            //   D = (a + d)^2 - 4(ad - bc)
+            //
+            // so that
+            //
+            //   y1, y2 = (a + d)/2 +/- 1/2 sqrt{D}
+            //
+            // y1 and y2 are one the conjugate of the other. Theis
+            // real part is
+            // 
+            //   Re{y1, y2} = (a+d)/2
+            //
+            // While their immaginary part (in absolute value) is
+            //
+            //   Imm{y1, y2} = 1/2 sqrt{-D}
+
+            double D = (a+d)*(a+d) - 4*(a*d - b*c);
+            assert(D < 0);
+
+            double re = 0.5 * (a+d);
+            double im = 0.5 * sqrt(-D);
+
+            double complex y1 = re + im * I;
+            double complex y2 = re - im * I;
+
+            // Now place the results into the output vector
+            // and tell the loop to skip one iteration
+            E[i]   = y1; 
+            E[i+1] = y2;
+            i++;
+
+        } else
+            E[i] = A[i * n + i];
+    }
 
     free(T);
     return true;

@@ -15,11 +15,11 @@ void print_square_matrix(double *M, int n, FILE *stream)
     fprintf(stream, "\n");
 }
 
-void print_vector(double *V, int n, FILE *stream)
+void print_vector(double complex *V, int n, FILE *stream)
 {
     fprintf(stream, "[ ");
     for (int i = 0; i < n; i++)
-        fprintf(stderr, "%2.2f ", V[i]);
+        fprintf(stderr, "(%2.2f + i%2.2f) ", creal(V[i]), cimag(V[i]));
     fprintf(stream, "]\n");
 }
 
@@ -50,9 +50,19 @@ int main(void)
     print_square_matrix(R,  2, stderr);
     print_square_matrix(QR, 2, stderr);
 
-    double E[4];
+    double complex E[4];
     lina_eig(A, E, 2);
     print_vector(E, 2, stderr);
 
+    double M[5*5] = {
+        1, 2, 3, 4, 5,
+        5, 1, 2, 3, 4,
+        4, 5, 1, 2, 3,
+        3, 4, 5, 1, 2,
+        2, 3, 4, 5, 1,
+    };
+    double complex E2[5];
+    lina_eig(M, E2, 5);
+    print_vector(E2, 5, stderr);
     return 0;
 }
