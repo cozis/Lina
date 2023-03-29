@@ -985,7 +985,7 @@ copyMatrixWithoutRowAndCol(double *M, double *D, int n,
     // Copy the lower left portion that comes
     // after both the deleted column and row.
     for (int i = del_row+1; i < n; i++)
-        for (int j = del_row+1; j < n; j++)
+        for (int j = del_col+1; j < n; j++)
             D[(i-1) * (n-1) + (j-1)] = M[i * n + j];
 
     // Copy the bottom portion that comes after
