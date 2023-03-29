@@ -679,42 +679,83 @@ void lina_conv(double *A, double *B, double *C,
             }
 }
 
-void lina_decompLU(double *A, double *L, double *U, int n)
+void lina_reallyP(int *P, double *P2, int n)
+{
+    memset(P2, 0, sizeof(double) * n * n);
+
+    for (int i = 0; i < n; i++)
+        P2[i * n + P[i]] = 1;
+}
+
+int lina_decompLUP(double *A, double *L, 
+                   double *U, int    *P, 
+                   int n)
 {
     assert(n > 0);
     assert(A != L && A != U && L != U);
 
-    // TODO: Handle the case when A can not be
-    //       decomposed.
+    for (int i = 0; i < n; i++)
+        P[i] = i;
 
-    memset(L, 0, sizeof(double) * n * n);
-    memset(U, 0, sizeof(double) * n * n);
+    int swaps = 0;
+    for (int i = 0; i < n; i++) {
+
+        int v = P[i];
+        double max_v = A[v * n + i];
+        int    max_i = i;
+        
+        for (int j = i+1; j < n; j++) {
+            int u = P[j];
+            double abs = fabs(A[u * n + j]);
+            if (abs > max_v) {
+                max_v = abs;
+                max_i = j;
+            }
+        }
+
+        if (max_i != i) {
+
+            // Swap rows
+            int temp = P[i];
+            P[i] = P[max_i];
+            P[max_i] = temp;
+
+            swaps++;
+        }
+    }
 
     for (int i = 0; i < n; i++)
-        {
-            for (int k = i; k < n; k++)
-                {
-                    int sum = 0; // L[i,j] * U[j,k]
-                    for (int j = 0; j < i; j++)
-                        sum += L[i * n + j] * U[j * n + k];
+        for (int j = 0; j < n; j++)
+            U[i * n + j] = A[P[i] * n + j];
 
-                    U[i * n + k] = A[i * n + k] - sum;
-                }
+    memset(L, 0, sizeof(double) * n * n);
+    for (int i = 0; i < n; i++)
+        L[i * n + i] = 1;
 
-            for (int k = i; k < n; k++)
-                {
-                    if (i == k)
-                        L[i * n + i] = 1;
-                    else 
-                        {
-                            int sum = 0;
-                            for (int j = 0; j < i; j++)
-                                sum += L[k * n + j] * U[j * n + i];
-
-                            L[k * n + i] = (A[k * n + i] - sum) / U[i * n + i];
-                        }
-                }
+    for (int i = 0; i < n; i++)
+        for (int j = i+1; j < n; j++) {
+            double u = U[i * n + i];
+            L[j * n + i] = U[j * n + i] / u;
+            for (int k = 0; k < n; k++)
+                U[j * n + k] -= L[j * n + i] * U[i * n + k];
         }
+
+    return swaps;
+}
+
+static void 
+printSquareMatrix(double *M, int n, FILE *stream)
+{
+    for (int i = 0; i < n; i++)
+        {
+            fprintf(stream, "| ");
+            for (int j = 0; j < n; j++)
+                {
+                    fprintf(stderr, "%2.2f ", M[i * n + j]);
+                }
+            fprintf(stream, "|\n");
+        }
+    fprintf(stream, "\n");
 }
 
 /* Function: lina_det
@@ -734,14 +775,20 @@ bool lina_det(double *A, int n, double *det)
     // Allocate the space for the L,U matrices.
     // I can't think of a version of this algorithm
     // where a temporary buffer isn't necessary.
-    double *T = malloc(sizeof(double) * n * n * 2);
+    double *T = malloc(sizeof(double) * n * n * 2 + sizeof(int) * n);
     if (T == NULL)
         return false;
 
     // Do the decomposition
     double *L = T;
-    double *U = T + (n * n);
-    lina_decompLU(A, L, U, n);
+    double *U = L + (n * n);
+    int    *P = (int*) (U + (n * n));
+    
+    int swaps = lina_decompLUP(A, L, U, P, n);
+    if (swaps < 0) {
+        free(T);
+        return false;
+    }
 
     // Knowing that
     //
@@ -758,9 +805,15 @@ bool lina_det(double *A, int n, double *det)
     // the diagonals.
 
     double prod = 1;
-    for (int i = 0; i < n; i++)
-        prod *= L[i * n + i] * U[i * n + i];
-    
+    for (int i = 0; i < n; i++) {
+        double l = L[i * n + i];
+        double u = U[i * n + i];
+        prod *= l * u;
+    }
+
+    if (swaps & 1)
+        prod = -prod;
+
     if (det)
         *det = prod;
 
@@ -922,7 +975,7 @@ bool lina_eig(double *M, double complex *E, int n)
             //
             //   y1, y2 = (a + d)/2 +/- 1/2 sqrt{D}
             //
-            // y1 and y2 are one the conjugate of the other. Theis
+            // y1 and y2 are one the conjugate of the other. Their
             // real part is
             // 
             //   Re{y1, y2} = (a+d)/2
@@ -949,6 +1002,82 @@ bool lina_eig(double *M, double complex *E, int n)
         } else
             E[i] = A[i * n + i];
     }
+
+    free(T);
+    return true;
+}
+
+/* Create the n-1 by n-1 matrix D obtained by
+** removing the [del_col] column and [del_row]
+** frow the n by n matrix M.
+*/
+static void 
+copyMatrixWithoutRowAndCol(double *M, double *D, int n, 
+                           int del_col, int del_row)
+{
+    // Copy the upper-left portion of matrix M
+    // that comes before the deleted column and
+    // row.
+    for (int i = 0; i < del_row; i++)
+        for (int j = 0; j < del_col; j++)
+            D[i * (n-1) + j] = M[i * n + j];
+
+    // Copy the lower left portion that comes
+    // after both the deleted column and row.
+    for (int i = del_row+1; i < n; i++)
+        for (int j = del_row+1; j < n; j++)
+            D[(i-1) * (n-1) + (j-1)] = M[i * n + j];
+
+    // Copy the bottom portion that comes after
+    // the deleted row but before the deleted column.
+    for (int i = del_row+1; i < n; i++)
+        for (int j = 0; j < del_col; j++)
+            D[(i-1) * (n-1) + j] = M[i * n + j];
+
+    // Copy the right portion that comes after
+    // the deleted column but before the deleted row.
+    for (int i = 0; i < del_row; i++)
+        for (int j = del_col+1; j < n; j++)
+            D[i * (n-1) + (j-1)] = M[i * n + j];
+}
+
+bool lina_inverse(double *M, double *D, int n)
+{
+    double det;
+    if (!lina_det(M, n, &det))
+        return false;
+
+    if (det == 0)
+        return false; // The matrix can't be inverted
+
+    double *T = malloc(sizeof(double) * ((n-1) * (n-1) + n * n));
+    if (T == NULL)
+        return false;
+
+    double *M_t = T + (n-1) * (n-1);    
+    lina_transpose(M, M_t, n, n);
+
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++) {
+            
+            copyMatrixWithoutRowAndCol(M_t, T, n, j, i);
+
+            double det2;
+            if (!lina_det(T, n-1, &det2)) {
+                free(T);
+                return false;
+            }
+
+            // If the determinant of M isn't zero,
+            // neither is this!
+            assert(det2 != 0);
+
+            bool i_is_odd = i & 1;
+            bool j_is_odd = j & 1;
+            int sign = (i_is_odd == j_is_odd) ? 1 : -1;
+
+            D[i * n + j] = sign * det2 / det;
+        }
 
     free(T);
     return true;
