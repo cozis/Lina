@@ -30,35 +30,27 @@
 */
 void lina_dot(double *A, double *B, double *C, int m, int n, int l)
 {
-    lina_dot2(A, B, C, 0, 0, 0, m, n, l);
-}
-
-void lina_dot2(double *A, double *B, double *C, 
-               int As, int Bs, int Cs, 
-               int m, int n, int l)
-{
     assert(m > 0 && n > 0 && l > 0);
-    assert(As >= 0 && Bs >= 0 && Cs >= 0);
     assert(A != NULL && B != NULL && C != NULL);
     assert(A != C && B != C);
 
     // Iteration over A's rows
-    for(int i = 0; i < m; i++)
-        {
-            // Iteration over B's columns
-            for(int k = 0; k < l; k++)
-                {
-                    double pos = 0;
+    for(int i = 0; i < m; i++) {
 
-                    // Iteration over the single B column 
-                    // for executing the product of sum
+        // Iteration over B's columns
+        for(int k = 0; k < l; k++) {
+
+            double sum = 0;
+
+            // Iteration over the single B column 
+            // for executing the product of sum
                     
-                    for(int j=0; j < n; j++)
-                        pos += A[i*(n + As) + j] * B[j*(l + Bs) + k];
+            for(int j=0; j < n; j++)
+                sum += A[i * n + j] * B[j * l + k];
 
-                    C[i*(l + Cs) + k] = pos;
-                }
+            C[i * l + k] = sum;
         }
+    }
 }
 
 /* Function: lina_add
@@ -130,68 +122,64 @@ void lina_transpose(double *A, double *B, int m, int n)
     assert(m > 0 && n > 0);
     assert(A != NULL && B != NULL);
 
-    if(m == 1 || n == 1)
-        {
-            // For a matrix with height or width of 1
-            // row-major and column-major order coincide,
-            // so the stransposition doesn't change the
-            // the memory representation. A simple copy
-            // does the job.
+    if(m == 1 || n == 1) {
+        // For a matrix with height or width of 1
+        // row-major and column-major order coincide,
+        // so the stransposition doesn't change the
+        // the memory representation. A simple copy
+        // does the job.
 
             if(A != B) // Does the copy or the branch cost more?
                 memcpy(B, A, sizeof(A[0]) * m * n);
+    
+    } else if(m == n) {
+
+        // Iterate over the upper triangular portion of
+        // the matrix and switch each element with the
+        // corresponding one in the lower triangular portion.
+        // NOTE: We're assuming A,B might be the same matrix.
+        //       If A,B are the same matrix, then the diagonal
+        //       is copied onto itself. By removing the +1 in
+        //       the inner loop, the copying of the diagonal
+        //       is avoided.
+
+        for(int i = 0; i < n; i += 1)
+            for(int j = 0; j < i+1; j += 1) {
+                double temp = A[i*n + j];
+                B[i*n + j] = A[j*n + i];
+                B[j*n + i] = temp;
+            }
+
+    } else {
+        // Not only the matrix needs to be transposed
+        // assuming the destination matrix is the same
+        // as the source matrix, but the memory representation
+        // of the matrix needs to switch from row-major
+        // to col-major, so it's not as simple as switching
+        // value's positions.
+        // This algorithm starts from the A[0][1] value and
+        // moves it where it needs to go, then gets the value
+        // that was at that position and puts that in it's
+        // new position. This process is iterated until the
+        // starting point A[0][1] is overwritten with the
+        // new value. In this process the first and last
+        // value of the matrix never move.
+
+        B[0] = A[0];
+        B[m*n - 1] = A[m*n - 1];
+
+        double item = A[1];
+        int    next = m;
+
+        while(next != 1) {
+            double temp = A[next];
+            B[next] = item;
+            item = temp;
+            next = (next % n) * m + (next / n);
         }
-    else if(m == n)
-        {
-            // Iterate over the upper triangular portion of
-            // the matrix and switch each element with the
-            // corresponding one in the lower triangular portion.
-            // NOTE: We're assuming A,B might be the same matrix.
-            //       If A,B are the same matrix, then the diagonal
-            //       is copied onto itself. By removing the +1 in
-            //       the inner loop, the copying of the diagonal
-            //       is avoided.
 
-            for(int i = 0; i < n; i += 1)
-                for(int j = 0; j < i+1; j += 1)
-                    {
-                        double temp = A[i*n + j];
-                        B[i*n + j] = A[j*n + i];
-                        B[j*n + i] = temp;
-                    }
-        }
-    else
-        {
-            // Not only the matrix needs to be transposed
-            // assuming the destination matrix is the same
-            // as the source matrix, but the memory representation
-            // of the matrix needs to switch from row-major
-            // to col-major, so it's not as simple as switching
-            // value's positions.
-            // This algorithm starts from the A[0][1] value and
-            // moves it where it needs to go, then gets the value
-            // that was at that position and puts that in it's
-            // new position. This process is iterated until the
-            // starting point A[0][1] is overwritten with the
-            // new value. In this process the first and last
-            // value of the matrix never move.
-
-            B[0] = A[0];
-            B[m*n - 1] = A[m*n - 1];
-
-            double item = A[1];
-            int    next = m;
-
-            while(next != 1)
-                {
-                    double temp = A[next];
-                    B[next] = item;
-                    item = temp;
-                    next = (next % n) * m + (next / n);
-                }
-
-            B[1] = item;
-        }
+        B[1] = item;
+    }
 }
 
 /* Function: scanValue
@@ -241,22 +229,19 @@ static int scanValue(FILE *fp, char *buffer, int max_length, char first, char *f
     // Scan the integer portion of
     // the numeric value and copy it
     // into the buffer.
-    do
-        {
-            if(n == max_length)
-                {
-                    // ERROR: Internal buffer is too small to hold
-                    //        the representation of this item.
-                    *error = "Internal buffer is too small to hold "
-                             "the representation of a numeric value";
-                    return 0;
-                }
-
-            buffer[n++] = c;
-            
-            c = getc(fp);
+    do {
+    
+        if(n == max_length) {
+            *error = "Internal buffer is too small to hold "
+                     "the representation of a numeric value";
+            return 0;
         }
-    while(c != EOF && isdigit(c));
+
+        buffer[n++] = c;
+            
+        c = getc(fp);
+    
+    } while(c != EOF && isdigit(c));
 
     // Did the integer part end with
     // a dot?
@@ -265,48 +250,42 @@ static int scanValue(FILE *fp, char *buffer, int max_length, char first, char *f
     // Now scan and copy the decimal 
     // part of the numeric value if 
     // a dot was found.
-    if(dot)
-        {
-            if(n == max_length)
-                {
-                    // ERROR: Internal buffer is too small to hold
-                    //        the representation of this item.
-                    //        (The dot doesn't fit.)
-                    *error = "Internal buffer is too small to hold "
-                             "the representation of a numeric value";
-                    return 0;
-                }
+    if(dot) {
+        if(n == max_length) {
+            // ERROR: Internal buffer is too small to hold
+            //        the representation of this item.
+            //        (The dot doesn't fit.)
+            *error = "Internal buffer is too small to hold "
+                     "the representation of a numeric value";
+            return 0;
+        }
 
-            buffer[n++] = '.';
+        buffer[n++] = '.';
+
+        c = getc(fp);
+
+        if(!isdigit(c)) {
+            // ERROR: Got something other than a 
+            //        digit after the dot.
+            *error = "Got something other than a digit after the dot.";
+            return 0;
+        }
+            
+        do {
+            if(n == max_length) {
+                // ERROR: Internal buffer is too small 
+                //        to hold the representation of
+                //        this item.
+                *error = "Internal buffer is too small to hold "
+                         "the representation of a numeric value";
+                return 0;
+            }
+
+            buffer[n++] = c;
 
             c = getc(fp);
-
-            if(!isdigit(c))
-                {
-                    // ERROR: Got something other than a 
-                    //        digit after the dot.
-                    *error = "Got something other than a digit after the dot.";
-                    return 0;
-                }
-            
-            do
-                {
-                    if(n == max_length)
-                        {
-                            // ERROR: Internal buffer is too small 
-                            //        to hold the representation of
-                            //        this item.
-                            *error = "Internal buffer is too small to hold "
-                                     "the representation of a numeric value";
-                            return 0;
-                        }
-
-                    buffer[n++] = c;
-
-                    c = getc(fp);
-                }
-            while(c != EOF && isdigit(c));
-        }
+        } while(c != EOF && isdigit(c));
+    }
 
     buffer[n] = '\0';
     
@@ -377,23 +356,21 @@ double *lina_loadMatrixFromStream(FILE *fp, int *width, int *height, char **erro
     while(c != EOF && isspace(c))
         c = getc(fp);
 
-    if(c == EOF)
-        {
-            // ERROR: Stream ended before a matrix was
-            //        found.
-            *error = "Stream ended before a matrix was found";
-            return NULL;
-        }
+    if(c == EOF) {
+        // ERROR: Stream ended before a matrix was
+        //        found.
+        *error = "Stream ended before a matrix was found";
+        return NULL;
+    }
 
-    if(c != '[')
-        {
-            // ERROR: Was expected a '[' as the first 
-            //        character of a matrix, but got 
-            //        something else instead.
-            *error = "Got something other than a matrix "
-                     "where one was expected";
-            return NULL;
-        }
+    if(c != '[') {
+        // ERROR: Was expected a '[' as the first 
+        //        character of a matrix, but got 
+        //        something else instead.
+        *error = "Got something other than a matrix "
+                 "where one was expected";
+        return NULL;
+    }
 
     c = getc(fp);
 
@@ -401,157 +378,145 @@ double *lina_loadMatrixFromStream(FILE *fp, int *width, int *height, char **erro
     while(c != EOF && isspace(c))
         c = getc(fp);
 
-    if(c == EOF)
-        {
-            // ERROR: Stream ended where a numeric value
-            //        was expected. 
-            *error = "Stream ended where a numeric value "
-                     "was expected";
-            return NULL;
-        }
+    if(c == EOF) {
+        // ERROR: Stream ended where a numeric value
+        //        was expected. 
+        *error = "Stream ended where a numeric value "
+                 "was expected";
+        return NULL;
+    }
 
     double *matrix = malloc(sizeof(matrix[0]) * 64);
 
-    if(matrix == NULL)
-        {
-            // ERROR: Insufficient memory.
-            *error = "Insufficient memory";
-            return NULL;
-        }
+    if(matrix == NULL) {
+        // ERROR: Insufficient memory.
+        *error = "Insufficient memory";
+        return NULL;
+    }
     
     int capacity = 64, size = 0, 
         w = -1, i = 0, j = 0;
 
     if(c != ']')
-        while(1)
-            {
-                if(!isdigit(c))
-                    {
-                        // ERROR: Got something other than a digit 
-                        //        where a numeric value was expected.
-                        *error = "Got something other than a numeric "
-                                 "value where one was expected";
-                        return NULL;
-                    }
-
-                // Numeric values can't be represented
-                // in strings bigger than this buffer
-                // since they need to be copied in it
-                // to be converted to actual numeric
-                // variables.
-                char buffer[128];
-                
-                int res = scanValue(fp, buffer, sizeof(buffer), c, &c, error);
-
-                if(res == 0)
-                    // Failed to scan the value, abort.
-                    // NOTE: The error was already reported.
-                    return NULL;
-
-                assert(res == 1 || res == -1);
-
-                // Make sure the matrix has enough space.
-                if(size == capacity)
-                    {
-                        int new_capacity = capacity * 2;
-
-                        double *temp = realloc(matrix, sizeof(double) * new_capacity);
-
-                        if(temp == NULL)
-                            {
-                                // ERROR: Insufficient memory.
-                                *error = "Insufficient memory";
-                                free(matrix);
-                                return NULL;
-                            }
-
-                        matrix = temp;
-                        capacity = new_capacity;
-                    }
-
-                errno = 0;
-
-                double casted;
-
-                if(res == 1)
-                    casted = (double) strtoll(buffer, NULL, 10);
-                else
-                    casted = strtod(buffer, NULL);
-
-                if(errno)
-                    {
-                        // ERROR: Failed to convert a numeric value
-                        //        from it's string form to a numeric 
-                        //        variable.
-                        *error = "Failed to convert string to number";
-                        free(matrix);
-                        return NULL;
-                    }
-
-                matrix[size++] = casted;
-
-                i += 1;
-                
-                while(c != EOF && isspace(c))
-                    c = getc(fp);
-
-                if(c == ']' || c == ',')
-                    {
-                        // The matrix's row just ended.
-
-                        if(w == -1)
-                            // This was the first row.
-                            w = i;
-                        else
-                            {
-                                // This wasn't the first row,
-                                // so it's possible that it's
-                                // length is different from the
-                                // previous ones.
-                                assert(w > -1);
-
-                                if(i != w)
-                                    {
-                                        // ERROR: The j-th row has the wrong
-                                        //        number of elements.
-                                        if(i < w)
-                                            *error = "Matrix row is too short";
-                                        else
-                                            *error = "Matrix row is too long";
-                                        return NULL;
-                                    }
-                            }
-
-                        i = 0;
-                        j += 1;
-
-                        if(c == ']')
-                            // The whole matrix ended!
-                            break;
-                    
-                        c = getc(fp);
-
-                        while(c != EOF && isspace(c))
-                            c = getc(fp);
-                    }
-
-                if(c == EOF)
-                    {
-                        // ERROR: Stream ended inside a matrix, where 
-                        //        either ',', ']' or a numeric value was
-                        //        expected.
-                        *error = "Stream ended inside a matrix, where either "
-                                 "',', ']' or a numeric value was expected";
-                        return NULL;
-                    }
+        while(1) {
+            if(!isdigit(c)) {
+                // ERROR: Got something other than a digit 
+                //        where a numeric value was expected.
+                *error = "Got something other than a numeric "
+                         "value where one was expected";
+                return NULL;
             }
 
-    if(size == 0)
-        {
-            free(matrix);
-            *error = "Empty matrix";
-            return NULL;
+            // Numeric values can't be represented
+            // in strings bigger than this buffer
+            // since they need to be copied in it
+            // to be converted to actual numeric
+            // variables.
+            char buffer[128];
+                
+            int res = scanValue(fp, buffer, sizeof(buffer), c, &c, error);
+
+            if(res == 0)
+                // Failed to scan the value, abort.
+                // NOTE: The error was already reported.
+                return NULL;
+
+            assert(res == 1 || res == -1);
+
+            // Make sure the matrix has enough space.
+            if(size == capacity) {
+                int new_capacity = capacity * 2;
+
+                double *temp = realloc(matrix, sizeof(double) * new_capacity);
+
+                if(temp == NULL) {
+                    // ERROR: Insufficient memory.
+                    *error = "Insufficient memory";
+                    free(matrix);
+                    return NULL;
+                }
+
+                matrix = temp;
+                capacity = new_capacity;
+            }
+
+            errno = 0;
+
+            double casted;
+
+            if(res == 1)
+                casted = (double) strtoll(buffer, NULL, 10);
+            else
+                casted = strtod(buffer, NULL);
+
+            if(errno) {
+                // ERROR: Failed to convert a numeric value
+                //        from it's string form to a numeric 
+                //        variable.
+                *error = "Failed to convert string to number";
+                free(matrix);
+                return NULL;
+            }
+
+            matrix[size++] = casted;
+
+            i += 1;
+                
+            while(c != EOF && isspace(c))
+                c = getc(fp);
+
+            if(c == ']' || c == ',') {
+                // The matrix's row just ended.
+
+                if(w == -1)
+                    // This was the first row.
+                    w = i;
+                else {
+                    // This wasn't the first row,
+                    // so it's possible that it's
+                    // length is different from the
+                    // previous ones.
+                    assert(w > -1);
+
+                    if(i != w) {
+                        // ERROR: The j-th row has the wrong
+                        //        number of elements.
+                        if(i < w)
+                            *error = "Matrix row is too short";
+                        else
+                            *error = "Matrix row is too long";
+                        return NULL;
+                    }
+                }
+
+                i = 0;
+                j += 1;
+
+                if(c == ']')
+                    // The whole matrix ended!
+                    break;
+                    
+                c = getc(fp);
+
+                while(c != EOF && isspace(c))
+                    c = getc(fp);
+            }
+
+            if(c == EOF) {
+                // ERROR: Stream ended inside a matrix, where 
+                //        either ',', ']' or a numeric value was
+                //        expected.
+                *error = "Stream ended inside a matrix, where either "
+                         "',', ']' or a numeric value was expected";
+                return NULL;
+            }
         }
+
+    if(size == 0) {
+        free(matrix);
+        *error = "Empty matrix";
+        return NULL;
+    }
 
     // If the internal fragmentation is too much,
     // return a dynamic memory region with the
@@ -559,15 +524,15 @@ double *lina_loadMatrixFromStream(FILE *fp, int *width, int *height, char **erro
     // build the matrix.
     int fragm_threshold = 30; // (It's a percentage)
     
-    if(100.0 * size/capacity < fragm_threshold)
-        {
-            int new_capacity = (size == 0) ? 1 : size;
+    if(100.0 * size/capacity < fragm_threshold) {
 
-            double *temp = realloc(matrix, new_capacity * sizeof(double));
+        int new_capacity = (size == 0) ? 1 : size;
 
-            if(temp != NULL)
-                matrix = temp;
-        }
+        double *temp = realloc(matrix, new_capacity * sizeof(double));
+
+        if(temp != NULL)
+            matrix = temp;
+    }
 
     *width = w;
     *height = j;
@@ -613,14 +578,12 @@ int lina_saveMatrixToStream(FILE *fp, double *A, int width, int height, char **e
     else
         *error = NULL;
     
-    if (width < 1)
-    {
+    if (width < 1) {
         *error = "The provided width is less than one";
         return -1;
     }
     
-    if (height < 1)
-    {
+    if (height < 1) {
         *error = "The provided height is less than one";
         return -1;
     }
@@ -630,19 +593,17 @@ int lina_saveMatrixToStream(FILE *fp, double *A, int width, int height, char **e
 
     putc('[',fp);
 
-    for (int i = 0; i < height-1; i++)
-    {
+    for (int i = 0; i < height-1; i++) {
         for (int j = 0; j < width-1; j++)
             fprintf(fp, "%f ", A[i*width + j]);
 
         fprintf(fp, "%f, ", A[i*width + width-1]);
-
     }
 
     for (int j = 0; j < width-1; j++)
-            fprintf(fp, "%f ", A[(height-1)*width + j]);
+        fprintf(fp, "%f ", A[(height-1)*width + j]);
 
-        fprintf(fp, "%f", A[(height-1)*width + width-1]);
+    fprintf(fp, "%f", A[(height-1)*width + width-1]);
         
     putc(']',fp);
 
@@ -666,17 +627,16 @@ void lina_conv(double *A, double *B, double *C,
 
     // Iterate over each pixel of the result matrix..
     for(int j = 0; j < Ch; j += 1)
-        for(int i = 0; i < Cw; i += 1)
-            {
-                // ..and calculate it's value as
-                // the scalar product between the
-                // mask B and a portion of A.
+        for(int i = 0; i < Cw; i += 1) {
+            // ..and calculate it's value as
+            // the scalar product between the
+            // mask B and a portion of A.
 
-                C[j * Cw + i] = 0;
-                for(int v = 0; v < Bh; v += 1)
-                    for(int u = 0; u < Bw; u += 1)
-                        C[j * Cw + i] += A[(i - Bw/2 + u) * Aw + (i - Bh/2 + v)] * B[v * Bw + u];
-            }
+            C[j * Cw + i] = 0;
+            for(int v = 0; v < Bh; v += 1)
+                for(int u = 0; u < Bw; u += 1)
+                    C[j * Cw + i] += A[(i - Bw/2 + u) * Aw + (i - Bh/2 + v)] * B[v * Bw + u];
+        }
 }
 
 void lina_reallyP(int *P, double *P2, int n)
