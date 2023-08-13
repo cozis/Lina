@@ -1,11 +1,8 @@
-#include <stddef.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
-#include <math.h>
 #include "lina.h"
 
 /* Function: lina_dot
@@ -43,12 +40,180 @@ void lina_dot(double *A, double *B, double *C, int m, int n, int l)
             double sum = 0;
 
             // Iteration over the single B column 
-            // for executing the product of sum
+            // for executing the sum of product
                     
             for(int j=0; j < n; j++)
                 sum += A[i * n + j] * B[j * l + k];
 
             C[i * l + k] = sum;
+        }
+    }
+}
+
+/* Function: lina_dot1
+**
+**   Evaluates the dot product C = A * B. The A,B
+**   matrices are, respectively, mxn and nxl, which
+**   means C is mxl. The resulting C matrix is stored
+**   in a memory  region specified by the caller. 
+**
+** Variant 1 of lina_dot:
+**   The idea of this variant is that inverting the order
+**   of the first and the third loop cicle we can avoid the
+**   rolling sum and so breaking the depencency chain 
+**   among subsequent add thus increasing the IPC.
+**
+** Notes:
+**
+**   - A,B must be provided as contiguous memory regions
+**     represented in row-major order. Also, C is stored
+**     that way too.
+**
+**   - The C pointer CAN'T refer to the same memory region 
+**     of either A or B.
+**
+**   - m,n,l must be greater than 0.
+**
+**   - This function can never fail.
+*/
+void lina_dot1(double *A, double *B, double *C, int m, int n, int l)
+{
+    assert(m > 0 && n > 0 && l > 0);
+    assert(A != NULL && B != NULL && C != NULL);
+    assert(A != C && B != C);
+
+    // Since the C matrix can contain any value,
+    // this first pass is done to overwrite the values
+
+    // Iteration over A's rows
+    for(int i = 0; i < m; i++) {
+        // Iteration over B's columns
+        for(int k = 0; k < l; k++)
+            C[i * l + k] = A[i * n] * B[k];
+    }
+
+    // Iteration over the single B column 
+    // for executing the sum of product
+    for(int j=1; j < n; j++)
+    {
+        // Iteration over A's rows
+        for(int i = 0; i < m; i++) {
+            // Iteration over B's columns
+            for(int k = 0; k < l; k++)
+                C[i * l + k] += A[i * n + j] * B[j * l + k];
+        }
+    }
+}
+
+/* Function: lina_dot2
+**
+**   Evaluates the dot product C = A * B. The A,B
+**   matrices are, respectively, mxn and nxl, which
+**   means C is mxl. The resulting C matrix is stored
+**   in a memory  region specified by the caller. 
+**
+** Variant 2 of lina_dot:
+**   Other than inverting the order of the first and the
+**   third loop cicle this version does the dot product in block
+**   of 32x32 values. Doing so the number of cache misses decreases.
+**
+** Notes:
+**
+**   - A,B must be provided as contiguous memory regions
+**     represented in row-major order. Also, C is stored
+**     that way too.
+**
+**   - The C pointer CAN'T refer to the same memory region 
+**     of either A or B.
+**
+**   - m,n,l must be greater than 0.
+**
+**   - This function can never fail.
+*/
+void lina_dot2(double *A, double *B, double *C, int m, int n, int l)
+{
+    assert(m > 0 && n > 0 && l > 0);
+    assert(A != NULL && B != NULL && C != NULL);
+    assert(A != C && B != C);
+
+    // This size is based on experimental results
+    #define BLOCKSIZE 32
+
+    const int br_max = (m & ~(BLOCKSIZE - 1));
+    const int bc_max = (l & ~(BLOCKSIZE - 1));
+
+    // Dealing with the squared submatrix of C
+    for (int br = 0; br < br_max; br += BLOCKSIZE)
+    {
+        for (int bc = 0; bc < bc_max; bc += BLOCKSIZE)
+        {
+            double block[BLOCKSIZE*BLOCKSIZE];
+            
+            // 1. Compute block
+
+            // Iteration over A's rows
+            for(int i = br; i < br+BLOCKSIZE; i++) {
+
+                // Iteration over B's columns
+                for(int k = bc; k < bc+BLOCKSIZE; k++)
+                    block[(i-br)*BLOCKSIZE + (k-bc)] = A[i * n] * B[k];
+            }
+
+            // Iteration over the single B column 
+            // for executing the sum of product
+            for(int j=1; j < n; j++)
+            {
+                // Iteration over A's rows
+                for(int i = br; i < br+BLOCKSIZE; i++) {
+
+                    // Iteration over B's columns
+                    for(int k = bc; k < bc+BLOCKSIZE; k++)
+                        block[(i-br)*BLOCKSIZE + (k-bc)] += A[i * n + j] * B[j * l + k];
+                }
+            }
+
+            // 2. Copy block to C
+            for (int i = 0; i < BLOCKSIZE; i++)
+                memcpy(&block[i*BLOCKSIZE],&C[(i+br)*l + bc], sizeof(double)*BLOCKSIZE);
+        }
+    }
+
+    // Dealing with the last rows and cols
+    
+    // Last rows
+    // Iteration over A's rows
+    for(int i = br_max; i < m; i++) {
+        // Iteration over B's columns
+        for(int k = 0; k < l; k++)
+            C[i*l + k] = A[i * n ] * B[k];
+    }
+
+    // Last cols
+    // Iteration over A's rows
+    for (int i = 0; i < br_max; i++)
+    {
+        // Iteration over B's columns
+        for(int k = bc_max; k < l; k++)
+            C[i*l + k] = A[i * n] * B[k];
+    }
+
+    // Iteration over the single B column 
+    // for executing the product of sum
+    for(int j=1; j < n; j++)
+    {
+        // Iteration over A's rows
+        for(int i = br_max; i < m; i++) {
+            // Iteration over B's columns
+            for(int k = 0; k < l; k++)
+                C[i*l + k] += A[i * n + j] * B[j * l + k];
+        }
+
+        // Iteration over A's rows
+        for (int i = 0; i < br_max; i++)
+        {
+            // Iteration over B's columns
+            for(int k = bc_max; k < l; k++)
+                C[i*l + k] += A[i * n + j] * B[j * l + k];
         }
     }
 }
@@ -639,406 +804,7 @@ void lina_conv(double *A, double *B, double *C,
         }
 }
 
-void lina_reallyP(int *P, double *P2, int n)
-{
-    memset(P2, 0, sizeof(double) * n * n);
-
-    for (int i = 0; i < n; i++)
-        P2[i * n + P[i]] = 1;
-}
-
-int lina_decompLUP(double *A, double *L, 
-                   double *U, int    *P, 
-                   int n)
-{
-    assert(n > 0);
-    assert(A != L && A != U && L != U);
-
-    for (int i = 0; i < n; i++)
-        P[i] = i;
-
-    int swaps = 0;
-    for (int i = 0; i < n; i++) {
-
-        int v = P[i];
-        double max_v = A[v * n + i];
-        int    max_i = i;
-        
-        for (int j = i+1; j < n; j++) {
-            int u = P[j];
-            double abs = fabs(A[u * n + j]);
-            if (abs > max_v) {
-                max_v = abs;
-                max_i = j;
-            }
-        }
-
-        if (max_i != i) {
-
-            // Swap rows
-            int temp = P[i];
-            P[i] = P[max_i];
-            P[max_i] = temp;
-
-            swaps++;
-        }
-    }
-
-    for (int i = 0; i < n; i++)
-        for (int j = 0; j < n; j++)
-            U[i * n + j] = A[P[i] * n + j];
-
-    memset(L, 0, sizeof(double) * n * n);
-    for (int i = 0; i < n; i++)
-        L[i * n + i] = 1;
-
-    for (int i = 0; i < n; i++)
-        for (int j = i+1; j < n; j++) {
-            double u = U[i * n + i];
-            L[j * n + i] = U[j * n + i] / u;
-            for (int k = 0; k < n; k++)
-                U[j * n + k] -= L[j * n + i] * U[i * n + k];
-        }
-
-    return swaps;
-}
-
-static void 
-printSquareMatrix(double *M, int n, FILE *stream)
-{
-    for (int i = 0; i < n; i++)
-        {
-            fprintf(stream, "| ");
-            for (int j = 0; j < n; j++)
-                {
-                    fprintf(stderr, "%2.2f ", M[i * n + j]);
-                }
-            fprintf(stream, "|\n");
-        }
-    fprintf(stream, "\n");
-}
-
-/* Function: lina_det
-**
-**   Calculates the determinant of the n by n matrix A
-**   and returns it throught the output parameter [det].
-**
-**   If not enough memory is available, false is returned,
-**   else true is returned.
-**
-** Notes:
-**   - The output parameter [det] is optional. (you can
-**     ignore the result by passing NULL).
-*/
-bool lina_det(double *A, int n, double *det)
-{
-    // Allocate the space for the L,U matrices.
-    // I can't think of a version of this algorithm
-    // where a temporary buffer isn't necessary.
-    double *T = malloc(sizeof(double) * n * n * 2 + sizeof(int) * n);
-    if (T == NULL)
-        return false;
-
-    // Do the decomposition
-    double *L = T;
-    double *U = L + (n * n);
-    int    *P = (int*) (U + (n * n));
-    
-    int swaps = lina_decompLUP(A, L, U, P, n);
-    if (swaps < 0) {
-        free(T);
-        return false;
-    }
-
-    // Knowing that
-    //
-    //   A = LU
-    //
-    // then
-    //
-    //   det(A) = det(LU) = det(L)det(U)
-    //
-    // Since L and U are triangular, their 
-    // determinant is the product of their 
-    // diagonals, so the product of the 
-    // determinants is the product of both 
-    // the diagonals.
-
-    double prod = 1;
-    for (int i = 0; i < n; i++) {
-        double l = L[i * n + i];
-        double u = U[i * n + i];
-        prod *= l * u;
-    }
-
-    if (swaps & 1)
-        prod = -prod;
-
-    if (det)
-        *det = prod;
-
-    free(T);
-    return true;
-}
-
-/* Checks that [A] is kind of upper triangular.
-**
-*/
-static bool isUpperTriangularEnough(double *A, int n, double eps)
-{
-    assert(A != NULL && n > 0 && eps > 0);
-
-    // Check that the lower triangular portion (without
-    // considering the diagonal) is zero.
-    for (int i = 0; i < n; i++)
-        for (int j = 0; j < i-1; j++)
-            if (A[i * n + j] > eps)
-                return false;
-
-    // Now check that the subdiagonal is also zero, 
-    // though since we are using the real version of 
-    // the QR algorithm, only real eigenvalues can be
-    // found. Any comples eigenvalues will manifest 
-    // as 2x2 blocks on the diagonal, so we need to 
-    // allow such blocks. To do this, a non-zero block 
-    // is allowed if it's not following another non-zero
-    // block.
-    // An important thing to note is that 2x2 matrices
-    // will always be considered upper triangular by this
-    // function, so the caller must manage this case.
-    bool flag = false;
-    for (int i = 0; i < n-1; i++) {
-        if (fabs(A[(i + 1) * n + i]) > eps) {
-            if (flag)
-                return false;
-            flag = true;
-        } else
-            flag = false;
-    }
-
-    // NOTE: Ideas were taken from [https://math.stackexchange.com/questions/4352389/exact-stop-condition-for-qr-algorithm]
-    return true;
-}
-
-/* Function: lina_eig
-**
-**   Calculates the eigenvalues of the n by n matrix M
-**   using the (unshifted) QR algorithm and stores them 
-**   in the E vector.
-**
-**   If not enough memory is available, this function
-**   aborts returning false. If all went well, true is
-**   returned.
-**
-** Algorithm:
-**
-**   The algorithm works by decomposing the M matrix into
-**   the product of two matrices Q and R, such that Q is
-**   orthonormal and R is upper triangular:
-**
-**       M = QR
-**
-**   Q and R are then multiplied in inverse order to obtain
-**   a new matrix M1, which is then decomposed in two new
-**   matrices Q1,R1. The algorithm is iterated n times until 
-**   the matrix Mn is upper triangular:
-**
-**       M = QR  ->  RQ = M(1)
-**
-**       M(1) = Q(1)R(1)  ->  R(1)Q(1) = M(2)
-**
-**       M(2) = Q(2)R(2)  ->  R(2)Q(2) = M(3)
-**
-**              ...
-**
-**       M(n-1) = Q(n-1)R(n-1)  ->  R(n-1)Q(n-1) = M(n)
-**
-**       M(n) <--- Triangular!
-**
-**   The eigenvalues of M(n) are the same as M. Being upper 
-**   triangular, M(n) has its eigenvalues on its diagonal,
-**   so we just need to scan the diagonal and store it into
-**   the E vector. If the original matrix has complex roots,
-**   the M(n) sequence will converge to a matrix with a 
-**   non-zero 2x2 block on the diagonal for each pair of
-**   complex roots. If that's the case, these blocks must
-**   be unpacked into the complex values using the quadratic
-**   formula.
-**   
-*/
-bool lina_eig(double *M, double complex *E, int n)
-{
-    // Allocate space for three matrices n by n
-    double *T = malloc(sizeof(double) * n * n * 3);
-    if (T == NULL)
-        return false;
-
-    double *A = T;
-    double *Q = A + n * n;
-    double *R = Q + n * n;
-    memcpy(A, M, sizeof(double) * n * n);
-
-    // At least 100 iterations are done. This is because
-    // the QR algorithm doesn't allow complex eigenvalues,
-    // so the A matrix may converge to a matrix with 2x2
-    // blocks on the diagonal. In general, the algorithm
-    // must iterate until the end result is triangular,
-    // but that may never be the case, so we end when the
-    // result matrix is "kind of triangular" (triangular
-    // with 2x2 blocks on the diagonal). But by using this
-    // rule, a 2x2 matrix will be considered as tringular
-    // from the start, which is not right! That's why we
-    // do at least 100 warm-up iterations.
-    double eps = 0.1;
-    int batch = 100;
-    do {
-        for (int i = 0; i < batch; i++) {
-            lina_decompQR(A, Q, R, n); // A(n) = QR
-            lina_dot(R, Q, A, n, n, n); // A(n+1) = RQ
-        }
-    } while (!isUpperTriangularEnough(A, n, eps));
-
-    // Now we export the diagonal of the iteration result
-    // also looking out for 2x2 diagonal blocks, in which
-    // case we need to unpack their complex eigenvalues
-    for (int i = 0; i < n; i++) {
-
-        // The current diagonal entry is A[i*n + i],
-        // so if this is the first entry of a 2x2 block,
-        // its lower entry A[(i+1)*n + i] will be non-zero
-        if (i+1 < n && fabs(A[(i+1) * n + i]) > eps) {
-
-            // It's a 2x2 block. Unpack the complex eigenvalues
-            // using the quadratic formula. (Is there a better
-            // way?)
-            
-            double a = A[(i+0) * n + (i+0)];
-            double b = A[(i+0) * n + (i+1)];
-            double c = A[(i+1) * n + (i+0)];
-            double d = A[(i+1) * n + (i+1)];
-            
-            // Given the block is:
-            //
-            //   | a  b |
-            //   | c  d |
-            //
-            // Then the eigenvalues are the roots of:
-            //
-            //   det(| a-y  b   |) = (a-y)(d-y) - bc = y^2 - (a + d)y + (ad - bc)
-            //       | c    d-y |
-            //
-            // For simplicity:
-            //
-            //   D = (a + d)^2 - 4(ad - bc)
-            //
-            // so that
-            //
-            //   y1, y2 = (a + d)/2 +/- 1/2 sqrt{D}
-            //
-            // y1 and y2 are one the conjugate of the other. Their
-            // real part is
-            // 
-            //   Re{y1, y2} = (a+d)/2
-            //
-            // While their immaginary part (in absolute value) is
-            //
-            //   Imm{y1, y2} = 1/2 sqrt{-D}
-
-            double D = (a+d)*(a+d) - 4*(a*d - b*c);
-            assert(D < 0);
-
-            double re = 0.5 * (a+d);
-            double im = 0.5 * sqrt(-D);
-
-            double complex y1 = re + im * I;
-            double complex y2 = re - im * I;
-
-            // Now place the results into the output vector
-            // and tell the loop to skip one iteration
-            E[i]   = y1; 
-            E[i+1] = y2;
-            i++;
-
-        } else
-            E[i] = A[i * n + i];
-    }
-
-    free(T);
-    return true;
-}
-
-/* Create the n-1 by n-1 matrix D obtained by
-** removing the [del_col] column and [del_row]
-** frow the n by n matrix M.
-*/
-static void 
-copyMatrixWithoutRowAndCol(double *M, double *D, int n, 
-                           int del_col, int del_row)
-{
-    // Copy the upper-left portion of matrix M
-    // that comes before the deleted column and
-    // row.
-    for (int i = 0; i < del_row; i++)
-        for (int j = 0; j < del_col; j++)
-            D[i * (n-1) + j] = M[i * n + j];
-
-    // Copy the lower left portion that comes
-    // after both the deleted column and row.
-    for (int i = del_row+1; i < n; i++)
-        for (int j = del_col+1; j < n; j++)
-            D[(i-1) * (n-1) + (j-1)] = M[i * n + j];
-
-    // Copy the bottom portion that comes after
-    // the deleted row but before the deleted column.
-    for (int i = del_row+1; i < n; i++)
-        for (int j = 0; j < del_col; j++)
-            D[(i-1) * (n-1) + j] = M[i * n + j];
-
-    // Copy the right portion that comes after
-    // the deleted column but before the deleted row.
-    for (int i = 0; i < del_row; i++)
-        for (int j = del_col+1; j < n; j++)
-            D[i * (n-1) + (j-1)] = M[i * n + j];
-}
-
 bool lina_inverse(double *M, double *D, int n)
 {
-    double det;
-    if (!lina_det(M, n, &det))
-        return false;
-
-    if (det == 0)
-        return false; // The matrix can't be inverted
-
-    double *T = malloc(sizeof(double) * ((n-1) * (n-1) + n * n));
-    if (T == NULL)
-        return false;
-
-    double *M_t = T + (n-1) * (n-1);    
-    lina_transpose(M, M_t, n, n);
-
-    for (int i = 0; i < n; i++)
-        for (int j = 0; j < n; j++) {
-            
-            copyMatrixWithoutRowAndCol(M_t, T, n, j, i);
-
-            double det2;
-            if (!lina_det(T, n-1, &det2)) {
-                free(T);
-                return false;
-            }
-
-            // If the determinant of M isn't zero,
-            // neither is this!
-            assert(det2 != 0);
-
-            bool i_is_odd = i & 1;
-            bool j_is_odd = j & 1;
-            int sign = (i_is_odd == j_is_odd) ? 1 : -1;
-
-            D[i * n + j] = sign * det2 / det;
-        }
-
-    free(T);
-    return true;
+    // To be done
 }
