@@ -4,6 +4,11 @@
 #include <errno.h>
 #include <ctype.h>
 #include "lina.h"
+#include <immintrin.h>
+#include <stdint.h>
+
+static void
+dot_kernel_6x8(double *A_sub, double *B_sub, double *C_sub, int x, int y, int c_min, int c_max, int n, int l);
 
 /* Function: lina_dot
 **
@@ -174,7 +179,7 @@ void lina_dot2(double *A, double *B, double *C, int m, int n, int l)
 
             // 2. Copy block to C
             for (int i = 0; i < BLOCKSIZE; i++)
-                memcpy(&block[i*BLOCKSIZE],&C[(i+br)*l + bc], sizeof(double)*BLOCKSIZE);
+                memcpy(&C[(i+br)*l + bc],&block[i*BLOCKSIZE], sizeof(double)*BLOCKSIZE);
         }
     }
 
@@ -216,6 +221,202 @@ void lina_dot2(double *A, double *B, double *C, int m, int n, int l)
                 C[i*l + k] += A[i * n + j] * B[j * l + k];
         }
     }
+}
+
+/* Function: lina_dot3
+**
+**   Evaluates the dot product C = A * B. The A,B
+**   matrices are, respectively, mxn and nxl, which
+**   means C is mxl. The resulting C matrix is stored
+**   in a memory  region specified by the caller. 
+**
+** Variant 3 of lina_dot:
+**   This include the changes of lina_dot2 but uses
+**   simd instructions to compute products and sums.
+**
+** Notes:
+**
+**   - A,B must be provided as contiguous memory regions
+**     represented in row-major order. Also, C is stored
+**     that way too.
+**
+**   - The C pointer CAN'T refer to the same memory region 
+**     of either A or B.
+**
+**   - m,n,l must be greater than 0.
+**
+**   - This function can never fail.
+*/
+void lina_dot3(double *A, double *B, double *C, int m, int n, int l)
+{
+    assert(m > 0 && n > 0 && l > 0);
+    assert(A != NULL && B != NULL && C != NULL);
+    assert(A != C && B != C);
+
+    // This size is based on experimental results
+    #define BLOCK_ROWS 6
+    #define BLOCK_COLS 8
+
+    const int br_max = (m & ~(BLOCK_ROWS - 1));
+    const int bc_max = (l & ~(BLOCK_COLS - 1));
+
+    __m256d *Bm = (__m256d *)B;
+    __m256d *Cm = (__m256d *)C;
+
+    // problema: B non è allineato a 32 byte, cosa che pare essere il problema
+
+    // Dealing with the squared submatrix of C
+    for (int br = 0; br < br_max; br += BLOCK_ROWS)
+    {
+        for (int bc = 0; bc < bc_max; bc += BLOCK_COLS)
+        {
+            __m256d mblock[BLOCK_ROWS][BLOCK_COLS/4] = {0};
+            
+            // 1. Compute block
+
+            for(int j=0; j < n; j++)
+            {
+                for(int i = 0; i < BLOCK_ROWS; i++)
+                {
+                    __m256d A_brdcst = _mm256_broadcast_sd(&A[(i+br) * n + j]);
+                    for(int k = 0; k < BLOCK_COLS/4; k++)
+                    {
+                            mblock[i][k] = _mm256_fmadd_pd(A_brdcst, Bm[(j * l + bc)/4 + k], mblock[i][k]);
+                    }
+                }
+                // Iteration over A's rows
+            }
+
+            // 2. Copy block to C
+            for (int i = 0; i < BLOCK_ROWS; i++)
+                for (int j = 0; j < BLOCK_COLS/4; j++)
+                   Cm[((i+br)*l + bc)/4 + j] = mblock[i][j];
+        }
+    }
+
+    // Dealing with the last rows and cols
+    //printf("br_max: %d\nbc_max: %d\n",br_max,bc_max);
+    // Last rows
+    // Iteration over A's rows
+    for(int i = br_max; i < m; i++) {
+        // Iteration over B's columns
+        for(int k = 0; k < l; k++)
+            C[i*l + k] = A[i * n ] * B[k];
+    }
+
+    // Last cols
+    // Iteration over A's rows
+    for (int i = 0; i < br_max; i++)
+    {
+        // Iteration over B's columns
+        for(int k = bc_max; k < l; k++)
+            C[i*l + k] = A[i * n] * B[k];
+    }
+
+    // Iteration over the single B column 
+    // for executing the product of sum
+    for(int j=1; j < n; j++)
+    {
+        // Iteration over A's rows
+        for(int i = br_max; i < m; i++) {
+            // Iteration over B's columns
+            for(int k = 0; k < l; k++)
+                C[i*l + k] += A[i * n + j] * B[j * l + k];
+        }
+
+        // Iteration over A's rows
+        for (int i = 0; i < br_max; i++)
+        {
+            // Iteration over B's columns
+            for(int k = bc_max; k < l; k++)
+                C[i*l + k] += A[i * n + j] * B[j * l + k];
+        }
+    }
+}
+
+/* Function: lina_dot4
+**
+**   Evaluates the dot product C = A * B. The A,B
+**   matrices are, respectively, mxn and nxl, which
+**   means C is mxl. The resulting C matrix is stored
+**   in a memory  region specified by the caller. 
+**
+** Variant 4 of lina_dot:
+**   This include the changes of lina_dot3 but uses the
+**   micro kernel subroutine
+**
+** Notes:
+**
+**   - A,B must be provided as contiguous memory regions
+**     represented in row-major order. Also, C is stored
+**     that way too.
+**
+**   - The C pointer CAN'T refer to the same memory region 
+**     of either A or B.
+**
+**   - m,n,l must be greater than 0.
+**
+**   - This function can never fail.
+*/
+void lina_dot4(double *A, double *B, double *C, int m, int n, int l)
+{
+    assert(m > 0 && n > 0 && l > 0);
+    assert(A != NULL && B != NULL && C != NULL);
+    assert(A != C && B != C);
+    // A_sub, B_sub and C_sub must be 32 byte aligned
+    assert(!((uintptr_t)A & 31llu) && !((uintptr_t)B & 31llu) && !((uintptr_t)C & 31llu));
+
+    #define KERNEL_ROW 6
+    #define KERNEL_COLS 8
+
+    const int br_max = (m & ~(KERNEL_ROW - 1));
+    const int bc_max = (l & ~(KERNEL_COLS - 1));
+
+    for (int br = 0; br < br_max; br += KERNEL_ROW)
+    {
+        for (int bc = 0; bc < bc_max; bc += KERNEL_COLS)
+        {
+            dot_kernel_6x8(A, B, C, br, bc, 0, n, n, l);
+        }
+    }
+}
+
+/*
+*   
+*   Computes C_sub += A_sub * B_sub where:
+*       - C_sub = C[x:x+6][y:y+8]
+*       - A_sub = A[x:x+6][c_min:c_max]
+*       - B_sub = B[c_min:c_max][y:y+8]
+*       - n is the number of columns of A
+*       - l the number of columns of B
+*/
+static void
+dot_kernel_6x8(double *A_sub, double *B_sub, double *C_sub, int x, int y, int c_min, int c_max, int n, int l)
+{
+    // A_sub, B_sub and C_sub must be 32 byte aligned
+    // assert is done in the main lina_dot function
+    //assert(!((uintptr_t)A_sub & 31llu) && !((uintptr_t)B_sub & 31llu) && !((uintptr_t)C_sub & 31llu));
+
+    // This structure should use 12 YMM registers
+
+    __m256d *Bm_sub = (__m256d *)B_sub;
+    __m256d *Cm_sub = (__m256d *)C_sub;
+    __m256d acc[6][2] = {0};
+
+
+    for (int k = c_min; k < c_max; k++)
+    {
+        for (int i = 0; i < 6; i++)
+        {
+            __m256d A_brdcst = _mm256_broadcast_sd(&A_sub[(x + i)*n + k]);
+            for (int j = 0; j < 2; j++)
+                acc[i][j] = _mm256_fmadd_pd(A_brdcst,Bm_sub[(k*l + y)/4 + j],acc[i][j]);
+        }
+    }
+
+    for (int i = 0; i < 6; i++)
+        for (int j = 0; j < 2; j++)
+            Cm_sub[((x+i)*l + y)/4 + j] = acc[i][j];
 }
 
 /* Function: lina_add
